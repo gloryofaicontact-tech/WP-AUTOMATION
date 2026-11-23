@@ -1,27 +1,22 @@
-import { Expose, Transform } from 'class-transformer';
+import { Expose } from 'class-transformer';
 import { NotificationType } from '@prisma/client';
 
 export class NotificationResponseDto {
-    @Expose()
-    @Transform(({ value }) => value.toString(), { toPlainOnly: true })
-    id!: string;
+  @Expose()
+  id!: string;
 
-    @Expose()
-    uuid!: string;
+  @Expose()
+  type!: NotificationType;
 
-    @Expose()
-    type!: NotificationType;
+  @Expose()
+  title!: string;
 
-    @Expose()
-    title!: string;
+  @Expose()
+  message!: string;
 
-    @Expose()
-    message!: string;
+  @Expose()
+  isRead!: boolean;
 
-    @Expose()
-    isRead!: boolean;
-
-    @Expose()
-    createdAt!: Date;
-
+  @Expose()
+  createdAt!: Date;
 }

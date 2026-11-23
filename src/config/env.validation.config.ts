@@ -43,7 +43,7 @@ export const envValidationSchema = Joi.object({
   PORT: Joi.number().port().default(3000),
   API_PREFIX: Joi.string().default('api/v1'),
   APP_URL: Joi.string().uri().required(),
-  APP_NAME: Joi.string().default('Classifieds Marketplace'),
+  APP_NAME: Joi.string().default('WP-AUTOMATION-BACKEND'),
 
   // ============================================
   // DATABASE
@@ -149,6 +149,17 @@ export const envValidationSchema = Joi.object({
   SENTRY_DSN: Joi.string().uri().optional().allow(''),
   SENTRY_ENVIRONMENT: Joi.string().optional(),
   SENTRY_TRACES_SAMPLE_RATE: Joi.number().min(0).max(1).default(0.1),
+
+  // ============================================
+  // EMAIL / SMTP
+  // ============================================
+  MAIL_HOST: Joi.string().optional().allow(''),
+  MAIL_PORT: Joi.number().port().default(587),
+  MAIL_USERNAME: Joi.string().optional().allow(''),
+  MAIL_PASSWORD: Joi.string().optional().allow(''),
+  MAIL_FROM_ADDRESS: Joi.string().email().optional(),
+  MAIL_FROM_NAME: Joi.string().optional(),
+  SMTP_SECURE: Joi.boolean().default(false),
 
   // ============================================
   // WEBSOCKET

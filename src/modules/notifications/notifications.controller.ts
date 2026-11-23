@@ -8,32 +8,38 @@ import { PaginationDto } from '../../common/dto/pagination.dto';
 @Controller('notifications')
 @UseGuards(JwtAuthGuard)
 export class NotificationsController {
-    constructor(private readonly notificationsService: NotificationsService) { }
+  constructor(private readonly notificationsService: NotificationsService) {}
 
-    @Get()
-    @HttpCode(HttpStatus.OK)
-    async findAll(
-        @CurrentUser() user: RequestUser,
-        @Query() paginationDto: PaginationDto,
-    ) {
-        return this.notificationsService.findAll(BigInt(user.sub || user.id), paginationDto);
-    }
+  @Get()
+  @HttpCode(HttpStatus.OK)
+  async findAll(
+    @CurrentUser() user: RequestUser,
+    @Query() paginationDto: PaginationDto,
+  ) {
+    return this.notificationsService.findAll(user.id, paginationDto);
+  }
 
-    @Post('read-all')
-    @HttpCode(HttpStatus.OK)
-    async markAllAsRead(@CurrentUser() user: RequestUser) {
-        return this.notificationsService.markAllAsRead(BigInt(user.sub || user.id));
-    }
+  @Post('read-all')
+  @HttpCode(HttpStatus.OK)
+  async markAllAsRead(@CurrentUser() user: RequestUser) {
+    return this.notificationsService.markAllAsRead(user.id);
+  }
 
-    @Post('read/:notificationId')
-    @HttpCode(HttpStatus.OK)
-    async markAsRead(@CurrentUser() user: RequestUser, @Param('notificationId') notificationId: string) {
-        return this.notificationsService.markAsRead(notificationId, BigInt(user.sub || user.id));
-    }
+  @Post('read/:notificationId')
+  @HttpCode(HttpStatus.OK)
+  async markAsRead(
+    @CurrentUser() user: RequestUser,
+    @Param('notificationId') notificationId: string,
+  ) {
+    return this.notificationsService.markAsRead(notificationId, user.id);
+  }
 
-    @Delete('delete/:notificationId')
-    @HttpCode(HttpStatus.OK)
-    async remove(@CurrentUser() user: RequestUser, @Param('notificationId') notificationId: string) {
-        return this.notificationsService.remove(notificationId, BigInt(user.sub || user.id));
-    }
+  @Delete('delete/:notificationId')
+  @HttpCode(HttpStatus.OK)
+  async remove(
+    @CurrentUser() user: RequestUser,
+    @Param('notificationId') notificationId: string,
+  ) {
+    return this.notificationsService.remove(notificationId, user.id);
+  }
 }

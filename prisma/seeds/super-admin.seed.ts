@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, UserStatus, RiskLevel } from '@prisma/client';
+import { PrismaClient, UserRole, UserStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { Logger } from 'winston';
 
@@ -6,10 +6,6 @@ export const seedSuperAdmin = async (prisma: PrismaClient, logger: Logger) => {
     const email = process.env.SEED_ADMIN_EMAIL || 'superadmin@gmail.com';
     const password = process.env.SEED_ADMIN_PASSWORD || 'admin123';
     const fullName = process.env.SEED_ADMIN_FULL_NAME || 'Super Admin';
-    
-    // Optional fields from .env - convert empty/undefined to null
-    const address = process.env.SEED_ADMIN_ADDRESS?.trim() || null;
-    const phoneNo = process.env.SEED_ADMIN_PHONE_NO?.trim() || null;
 
     logger.info(`Checking for Super Admin account: ${email}`);
 
@@ -26,17 +22,14 @@ export const seedSuperAdmin = async (prisma: PrismaClient, logger: Logger) => {
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
     await prisma.$transaction(async (tx) => {
-
         const superAdmin = await tx.user.create({
             data: {
                 email,
                 passwordHash,
                 fullName,
-                address,
-                phoneNo,
                 role: UserRole.SUPER_ADMIN,
                 status: UserStatus.ACTIVE,
-                createdAt: new Date(),
+                emailVerifiedAt: new Date(),
             },
         });
 
@@ -45,10 +38,8 @@ export const seedSuperAdmin = async (prisma: PrismaClient, logger: Logger) => {
                 userId: superAdmin.id,
                 action: 'SYSTEM_INIT_SUPER_ADMIN',
                 entity: 'User',
-                entityId: superAdmin.id.toString(),
+                entityId: superAdmin.id,
                 ipAddress: '127.0.0.1',
-                userAgent: 'Prisma Seeding Script',
-                riskLevel: RiskLevel.CRITICAL,
                 details: {
                     message: 'Initial Super Admin created via seeding script',
                 },
@@ -57,11 +48,9 @@ export const seedSuperAdmin = async (prisma: PrismaClient, logger: Logger) => {
 
         logger.info('Super Admin created successfully!');
         logger.info(`Email: ${superAdmin.email}`);
-        if (superAdmin.address) logger.info(`Address: ${superAdmin.address}`);
-        if (superAdmin.phoneNo) logger.info(`Phone: ${superAdmin.phoneNo}`);
 
         if (process.env.NODE_ENV === 'development') {
             logger.info(`Password: (As defined in .env or default)`);
         }
     });
-};
+};

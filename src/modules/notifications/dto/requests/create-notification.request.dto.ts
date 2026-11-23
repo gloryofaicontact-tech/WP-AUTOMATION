@@ -1,22 +1,19 @@
-import { IsEnum, IsNotEmpty, IsOptional, IsString, IsObject } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsString, IsUUID } from 'class-validator';
 import { NotificationType } from '@prisma/client';
 
 export class CreateNotificationRequestDto {
-    @IsNotEmpty()
-    userId!: bigint;
+  @IsNotEmpty()
+  @IsUUID()
+  userId!: string;
 
-    @IsEnum(NotificationType)
-    type!: NotificationType;
+  @IsEnum(NotificationType)
+  type!: NotificationType;
 
-    @IsString()
-    @IsNotEmpty()
-    title!: string;
+  @IsString()
+  @IsNotEmpty()
+  title!: string;
 
-    @IsString()
-    @IsNotEmpty()
-    message!: string;
-
-    @IsOptional()
-    @IsObject()
-    data?: any;
+  @IsString()
+  @IsNotEmpty()
+  message!: string;
 }

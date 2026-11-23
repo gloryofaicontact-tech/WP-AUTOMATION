@@ -1,13 +1,9 @@
-import { Expose, Transform } from 'class-transformer';
+import { Expose } from 'class-transformer';
 import { UserRole, UserStatus } from '@prisma/client';
 
 export class UpdateUserResponseDto {
   @Expose()
-  @Transform(({ value }) => value.toString(), { toPlainOnly: true })
   id!: string;
-
-  @Expose()
-  uuid!: string;
 
   @Expose()
   email!: string;
@@ -16,10 +12,7 @@ export class UpdateUserResponseDto {
   fullName!: string;
 
   @Expose()
-  address?: string;
-
-  @Expose()
-  phoneNo?: string;
+  profileImage?: string;
 
   @Expose()
   role!: UserRole;

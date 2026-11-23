@@ -20,8 +20,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: configService.getOrThrow<string>('jwt.secret'),
-      issuer: configService.get<string>('jwt.issuer', 'classifieds-api'),
-      audience: configService.get<string>('jwt.audience', 'classifieds-client'),
+      issuer: configService.get<string>('jwt.issuer', 'backend-api'),
+      audience: configService.get<string>('jwt.audience', 'backend-client'),
     });
   }
 
@@ -36,9 +36,14 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       throw new UnauthorizedException('Session expired. Please login again.');
     }
 
-    const sessionId = BigInt(payload.sessionId);
+    const sessionId = payload.sessionId;
     const session = await this.prisma.userSession.findFirst({
-      where: { id: sessionId, userId: BigInt(payload.sub), expiresAt: { gt: new Date() } },
+      where: {
+        id: sessionId,
+        userId: payload.sub,
+        expiresAt: { gt: new Date() },
+        revokedAt: null,
+      },
       include: { user: true },
     });
 
@@ -48,9 +53,6 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     }
 
     const user = session.user;
-    if (user.deletedAt) {
-      throw new UnauthorizedException('User not found');
-    }
 
     if (user.status !== UserStatus.ACTIVE) {
       this.logger.warn(`Inactive account: ${user.id} (Status: ${user.status})`);
@@ -62,8 +64,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       .catch((error) => this.logger.error('Failed to update lastActiveAt', error));
 
     const requestUser: RequestUser = {
-      id: user.id.toString(),
-      sub: user.id.toString(),
+      id: user.id,
+      sub: user.id,
       sessionId: payload.sessionId,
       email: user.email,
       fullName: user.fullName,

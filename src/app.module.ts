@@ -23,6 +23,8 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { BigIntInterceptor } from './common/interceptors/bigint.interceptor';
 import { ClassSerializerInterceptor } from '@nestjs/common';
+import mailConfig from './config/mail.config';
+import { MailModule } from './modules/mail/mail.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { CacheModule } from './infrastructure/cache/cache.module';
 import { getThrottlerModuleOptions } from './config/throttle-module.config';
@@ -35,6 +37,7 @@ import { getThrottlerModuleOptions } from './config/throttle-module.config';
       expandVariables: true,
       load: [
         appConfig,
+        mailConfig,
         databaseConfig,
         jwtConfig,
         securityConfig,
@@ -70,6 +73,7 @@ import { getThrottlerModuleOptions } from './config/throttle-module.config';
     HealthModule,
     AuthModule,
     UsersModule,
+    MailModule,
     NotificationsModule,
   ],
 

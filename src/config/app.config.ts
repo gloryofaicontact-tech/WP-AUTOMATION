@@ -36,7 +36,7 @@ export interface AppConfig {
  * - `PORT`: Server port (default: 3000)
  * - `API_PREFIX`: API route prefix (default: 'api/v1')
  * - `APP_URL`: Application base URL (required, validated by env.validation.config.ts)
- * - `APP_NAME`: Application display name (default: 'Classifieds Marketplace')
+ * - `APP_NAME`: Application display name (default: 'WP-AUTOMATION-BACKEND')
  * - `SLOW_REQUEST_WARNING_THRESHOLD`: Warning threshold in ms (default: 1000)
  * - `SLOW_REQUEST_CRITICAL_THRESHOLD`: Critical threshold in ms (default: 3000)
  * 
@@ -61,7 +61,7 @@ export default registerAs('app', (): AppConfig => ({
   port: parseInt(process.env.PORT ?? '3000', 10) || 3000,
   apiPrefix: process.env.API_PREFIX ?? 'api/v1',
   appUrl: process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`,
-  appName: process.env.APP_NAME ?? 'Classifieds Marketplace',
+  appName: process.env.APP_NAME ?? 'WP-AUTOMATION-BACKEND',
   performance: {
     slowRequestWarningThreshold: parseInt(process.env.SLOW_REQUEST_WARNING_THRESHOLD ?? '1000', 10) || 1000,
     slowRequestCriticalThreshold: parseInt(process.env.SLOW_REQUEST_CRITICAL_THRESHOLD ?? '3000', 10) || 3000,

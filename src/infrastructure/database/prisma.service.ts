@@ -7,62 +7,9 @@ import { ConfigService } from '@nestjs/config';
  * 
  * Extends PrismaClient with custom query extensions for soft delete operations.
  */
-type ExtendedPrismaClient = ReturnType<PrismaClient['$extends']>;
-
-/**
- * Prisma Database Service.
- * 
- * Extends PrismaClient with application-specific functionality including:
- * - Connection lifecycle management
- * - Health checking
- * - Soft delete extensions for User model
- * - Environment-aware logging
- * 
- * **Features:**
- * - Automatic connection on module initialization
- * - Graceful disconnection on module destruction
- * - Connection health verification via SQL query
- * - Extended client with soft delete for User model
- * - Environment-aware logging (verbose in development, errors only in production)
- * 
- * **Soft Delete Extension:**
- * The `extended` property provides a Prisma client with soft delete functionality
- * for the User model. When using `extended.user.delete()`, it performs a soft delete
- * by setting `deletedAt` and `status` fields instead of actually deleting the record.
- * 
- * **Usage:**
- * ```typescript
- * constructor(private prisma: PrismaService) {}
- * 
- * // Standard Prisma operations
- * const user = await this.prisma.user.findUnique({ 
- *   where: { id: 1n },
- *   select: { id: true, email: true }
- * });
- * 
- * // Hard delete (permanently removes record)
- * await this.prisma.user.delete({ where: { id: 1n } });
- * 
- * // Soft delete (sets deletedAt and status to DELETED)
- * await this.prisma.extended.user.delete({ where: { id: 1n } });
- * ```
- * 
- * **Connection Lifecycle:**
- * - `onModuleInit()`: Connects to database and verifies connection
- * - `onModuleDestroy()`: Gracefully disconnects from database
- * 
- * **Error Handling:**
- * - Connection errors are logged but don't throw (allows graceful degradation)
- * - In production, consider failing fast on connection errors
- * 
- * **Logging:**
- * - Development: Logs info, warn, and error level queries
- * - Production: Logs only error level queries
- */
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PrismaService.name);
-  private _extendedClient: ExtendedPrismaClient | null = null;
 
   constructor(private readonly configService: ConfigService) {
     super({
@@ -70,56 +17,6 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         ? ['info', 'warn', 'error']
         : ['error'],
     });
-  }
-
-  /**
-   * Extended Prisma client with soft delete functionality.
-   * 
-   * Provides a Prisma client instance with custom query extensions.
-   * Currently implements soft delete for the User model.
-   * 
-   * **Soft Delete Behavior:**
-   * When calling `extended.user.delete()`, instead of permanently deleting
-   * the record, it:
-   * - Sets `deletedAt` to current timestamp
-   * - Sets `status` to 'DELETED'
-   * - Preserves the record for audit purposes
-   * 
-   * **Caching:**
-   * The extended client is cached after first access to avoid recreating
-   * the extension on every call.
-   * 
-   * @returns Extended Prisma client with soft delete extensions
-   * 
-   * @example
-   * ```typescript
-   * // Soft delete a user
-   * await this.prisma.extended.user.delete({ where: { id: userId } });
-   * 
-   * // The user record still exists but with deletedAt and status set
-   * const deletedUser = await this.prisma.user.findUnique({ 
-   *   where: { id: userId } 
-   * });
-   * // deletedUser.deletedAt !== null
-   * // deletedUser.status === 'DELETED'
-   * ```
-   */
-  get extended(): ExtendedPrismaClient {
-    if (!this._extendedClient) {
-      this._extendedClient = this.$extends({
-        query: {
-          user: {
-            async delete({ args, query }) {
-              return query({
-                ...args,
-                data: { deletedAt: new Date(), status: 'DELETED' },
-              });
-            },
-          },
-        },
-      }) as ExtendedPrismaClient;
-    }
-    return this._extendedClient;
   }
 
   /**

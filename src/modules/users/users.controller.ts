@@ -8,7 +8,7 @@ import { UpdateProfileRequestDto } from './dto/requests/update-profile.request.d
 @Controller('users')
 @UseGuards(JwtAuthGuard)
 export class UsersController {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(private readonly usersService: UsersService) {}
 
   @Put('profile-update')
   @HttpCode(HttpStatus.OK)
@@ -16,13 +16,12 @@ export class UsersController {
     @CurrentUser() user: RequestUser,
     @Body() dto: UpdateProfileRequestDto,
   ) {
-    return this.usersService.updateProfile(BigInt(user.sub || user.id), dto);
+    return this.usersService.updateProfile(user.id, dto);
   }
 
   @Delete('profile-delete')
   @HttpCode(HttpStatus.OK)
   async deleteAccount(@CurrentUser() user: RequestUser) {
-    return this.usersService.deleteAccount(BigInt(user.sub || user.id));
+    return this.usersService.deleteAccount(user.id);
   }
-
 }

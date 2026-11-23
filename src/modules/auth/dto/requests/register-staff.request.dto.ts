@@ -1,12 +1,12 @@
-import { IsEmail, IsString, MinLength, MaxLength, Matches, IsNotEmpty, IsEnum, IsIn, IsOptional } from 'class-validator';
+import { IsEmail, IsString, MinLength, MaxLength, Matches, IsNotEmpty, IsEnum } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { UserRole } from '@prisma/client';
 
-/**
- * Allowed roles when Super Admin registers staff (Admin or Moderator).
- * SUPER_ADMIN and USER cannot be assigned via this endpoint.
- */
-export const STAFF_REGISTER_ALLOWED_ROLES: UserRole[] = [UserRole.ADMIN];
+export const STAFF_REGISTER_ALLOWED_ROLES: UserRole[] = [
+  UserRole.ADMIN,
+  UserRole.EDITOR,
+  UserRole.REVIEWER,
+];
 
 export class RegisterStaffRequestDto {
   @IsNotEmpty()
@@ -36,25 +36,9 @@ export class RegisterStaffRequestDto {
   @Transform(({ value }) => value?.trim())
   fullName!: string;
 
-
   @IsNotEmpty()
-  @IsString()
-  @MaxLength(512)
-  @Transform(({ value }) => value?.trim())
-  address!: string;
-
-  @IsNotEmpty()
-  @IsString()
-  @Matches(/^\+94[0-9]{9}$/, {
-    message: 'Phone number must be in format: +94XXXXXXXXX',
-  })
-  phoneNo?: string;
-
-  @IsNotEmpty()
-  @IsEnum(UserRole, { message: 'Role must be ADMIN' })
-  @IsIn(STAFF_REGISTER_ALLOWED_ROLES, {
-    message: 'Role must be ADMIN. SUPER_ADMIN and USER cannot be assigned here.',
+  @IsEnum(STAFF_REGISTER_ALLOWED_ROLES, {
+    message: 'Role must be one of: ADMIN, EDITOR, REVIEWER',
   })
   role!: UserRole;
 }
-

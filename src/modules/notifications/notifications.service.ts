@@ -5,123 +5,103 @@ import { NotificationResponseDto } from './dto/responses/notification.response.d
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { plainToInstance } from 'class-transformer';
 import { paginate } from '../../common/utils/pagination.util';
-import { Prisma } from '@prisma/client';
-import { isUuid } from '../../common/utils/uuid.util';
+import type { Prisma } from '@prisma/client';
 
 const NOTIFICATION_SELECT = {
-    id: true,
-    uuid: true,
-    type: true,
-    title: true,
-    message: true,
-    data: true,
-    isRead: true,
-    createdAt: true,
+  id: true,
+  userId: true,
+  type: true,
+  title: true,
+  message: true,
+  isRead: true,
+  createdAt: true,
 } satisfies Prisma.NotificationSelect;
 
 @Injectable()
 export class NotificationsService {
-    constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
-    async create(dto: CreateNotificationRequestDto) {
-        return this.prisma.notification.create({
-            data: {
-                userId: dto.userId,
-                type: dto.type,
-                title: dto.title,
-                message: dto.message,
-                data: dto.data ?? undefined,
-                isRead: false,
-            },
-        });
+  async create(dto: CreateNotificationRequestDto) {
+    return this.prisma.notification.create({
+      data: {
+        userId: dto.userId,
+        type: dto.type,
+        title: dto.title,
+        message: dto.message,
+        isRead: false,
+      },
+    });
+  }
+
+  async findAll(userId: string, paginationDto: PaginationDto) {
+    const result = await paginate(
+      this.prisma.notification,
+      paginationDto,
+      {
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        select: NOTIFICATION_SELECT,
+      },
+    );
+
+    const unreadCount = await this.prisma.notification.count({
+      where: { userId, isRead: false },
+    });
+
+    const mappedData = plainToInstance(NotificationResponseDto, result.data, {
+      excludeExtraneousValues: true,
+    });
+
+    return {
+      message: 'Notifications retrieved successfully',
+      data: mappedData,
+      meta: {
+        ...result.meta,
+        unreadCount,
+      },
+    };
+  }
+
+  async markAsRead(notificationId: string, userId: string) {
+    const notification = await this.prisma.notification.findFirst({
+      where: { id: notificationId, userId },
+      select: { id: true },
+    });
+
+    if (!notification) {
+      throw new NotFoundException('Notification not found');
     }
 
-    async findAll(userId: bigint, paginationDto: PaginationDto) {
+    await this.prisma.notification.update({
+      where: { id: notification.id },
+      data: { isRead: true },
+    });
 
-        const result = await paginate(
-            this.prisma.notification,
-            paginationDto,
-            {
-                where: {
-                    userId,
-                    deletedAt: null
-                },
-                orderBy: { createdAt: 'desc' },
-                select: NOTIFICATION_SELECT
-            }
-        );
+    return { message: 'Notification marked as read' };
+  }
 
-        const unreadCount = await this.prisma.notification.count({
-            where: { userId, isRead: false, deletedAt: null },
-        });
+  async markAllAsRead(userId: string) {
+    await this.prisma.notification.updateMany({
+      where: { userId, isRead: false },
+      data: { isRead: true },
+    });
+    return { message: 'All notifications marked as read' };
+  }
 
-        const mappedData = plainToInstance(NotificationResponseDto, result.data, {
-            excludeExtraneousValues: true,
-        });
+  async remove(notificationId: string, userId: string) {
+    const notification = await this.prisma.notification.findFirst({
+      where: { id: notificationId, userId },
+      select: { id: true },
+    });
 
-        return {
-            message: 'Notifications retrieved successfully',
-            data: mappedData,
-            meta: {
-                ...result.meta,
-                unreadCount,
-            },
-        };
+    if (!notification) {
+      throw new NotFoundException('Notification not found');
     }
 
-    /**
-     * Mark as read by notification ID or UUID (user can only mark own notifications).
-     */
-    async markAsRead(idOrUuid: string, userId: bigint) {
-        const where: { userId: bigint; id?: bigint; uuid?: string } = { userId };
-        if (isUuid(idOrUuid)) where.uuid = idOrUuid;
-        else if (/^\d+$/.test(idOrUuid)) where.id = BigInt(idOrUuid);
-        else throw new NotFoundException('Notification not found');
+    await this.prisma.notification.delete({
+      where: { id: notification.id },
+    });
 
-        const notification = await this.prisma.notification.findFirst({
-            where: { ...where, deletedAt: null },
-            select: { id: true },
-        });
-
-        if (!notification) throw new NotFoundException('Notification not found');
-
-        await this.prisma.notification.update({
-            where: { id: notification.id },
-            data: { isRead: true },
-        });
-
-        return { message: 'Notification marked as read' };
-    }
-
-    async markAllAsRead(userId: bigint) {
-        await this.prisma.notification.updateMany({
-            where: { userId, isRead: false },
-            data: { isRead: true },
-        });
-        return { message: 'All notifications marked as read' };
-    }
-
-    /**
-     * Remove (soft delete) by notification ID or UUID (user can only delete own notifications).
-     */
-    async remove(idOrUuid: string, userId: bigint) {
-        const where: { userId: bigint; id?: bigint; uuid?: string } = { userId };
-        if (isUuid(idOrUuid)) where.uuid = idOrUuid;
-        else if (/^\d+$/.test(idOrUuid)) where.id = BigInt(idOrUuid);
-        else throw new NotFoundException('Notification not found');
-
-        const notification = await this.prisma.notification.findFirst({
-            where: { ...where, deletedAt: null },
-            select: { id: true },
-        });
-
-        if (!notification) throw new NotFoundException('Notification not found');
-
-        await this.prisma.notification.update({
-            where: { id: notification.id },
-            data: { deletedAt: new Date() },
-        });
-
-        return { message: 'Notification deleted successfully' };
-    }
+    return { message: 'Notification deleted successfully' };
+  }
 }

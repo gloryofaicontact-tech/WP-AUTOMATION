@@ -21,7 +21,7 @@ import { EmailVerifyCheckRequestDto } from './dto/requests/email-verify-check.re
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) { }
+  constructor(private readonly authService: AuthService) {}
 
   @Public()
   @Post('register')
@@ -40,7 +40,7 @@ export class AuthController {
   @Post('register/staff')
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   async registerStaff(
     @Body() dto: RegisterStaffRequestDto,
     @CurrentUser() user: RequestUser,
@@ -50,7 +50,7 @@ export class AuthController {
     const userAgent = req.headers['user-agent'] || 'Unknown';
     return this.authService.registerStaff(
       dto,
-      BigInt(user.sub || user.id),
+      user.id,
       ipAddress,
       userAgent,
     );
@@ -79,13 +79,12 @@ export class AuthController {
     @Req() req: Request,
   ) {
     const userAgent = req.headers['user-agent'] || 'Unknown';
-    const sessionId = user.sessionId ? BigInt(user.sessionId) : null;
+    const sessionId = user.sessionId || null;
     if (!sessionId) {
       return { message: 'Logged out successfully' };
     }
-    return this.authService.logout(BigInt(user.sub || user.id), sessionId, ipAddress, userAgent);
+    return this.authService.logout(user.id, sessionId, ipAddress, userAgent);
   }
-
 
   @Public()
   @Post('refresh')
@@ -104,28 +103,28 @@ export class AuthController {
   @Get('details')
   @UseGuards(JwtAuthGuard)
   async getCurrentUser(@CurrentUser() user: RequestUser) {
-    return this.authService.getProfile(BigInt(user.sub || user.id));
+    return this.authService.getProfile(user.id);
   }
 
   @Get('sessions')
   @UseGuards(JwtAuthGuard)
   async getSessions(@CurrentUser() user: RequestUser) {
-    return this.authService.getSessions(BigInt(user.sub || user.id));
+    return this.authService.getSessions(user.id);
   }
 
-  @Delete('sessions/revoke/:idOrUuid')
+  @Delete('sessions/revoke/:id')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   async revokeSession(
     @CurrentUser() user: RequestUser,
-    @Param('idOrUuid') idOrUuid: string,
+    @Param('id') id: string,
     @Ip() ipAddress: string,
     @Req() req: Request,
   ) {
     const userAgent = req.headers['user-agent'] || 'Unknown';
     return this.authService.revokeSession(
-      BigInt(user.sub || user.id),
-      idOrUuid,
+      user.id,
+      id,
       ipAddress,
       userAgent,
     );
@@ -140,20 +139,21 @@ export class AuthController {
     @Req() req: Request,
   ) {
     const userAgent = req.headers['user-agent'] || 'Unknown';
-    return this.authService.logoutAll(BigInt(user.sub || user.id), ipAddress, userAgent);
+    return this.authService.logoutAll(user.id, ipAddress, userAgent);
   }
 
   @Post('change-password')
   @UseGuards(ThrottlerGuard, JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   @Throttle({ 'auth-sensitive': {} })
-  async changePassword(@CurrentUser() user: RequestUser,
+  async changePassword(
+    @CurrentUser() user: RequestUser,
     @Body() dto: ChangePasswordRequestDto,
     @Ip() ipAddress: string,
     @Req() req: Request,
   ) {
     const userAgent = req.headers['user-agent'] || 'Unknown';
-    return this.authService.changePassword(BigInt(user.sub || user.id), dto, ipAddress, userAgent);
+    return this.authService.changePassword(user.id, dto, ipAddress, userAgent);
   }
 
   @Public()
@@ -174,7 +174,6 @@ export class AuthController {
     return this.authService.resetPassword(dto);
   }
 
-  /** Send email verification OTP. No database save. Returns hashed token + expiresAt. */
   @Public()
   @Post('email-verify/send')
   @HttpCode(HttpStatus.OK)
@@ -184,7 +183,6 @@ export class AuthController {
     return this.authService.sendEmailVerifyOtp(dto.email);
   }
 
-  /** Verify email OTP using token from send response. No database check. */
   @Public()
   @Post('email-verify/check')
   @HttpCode(HttpStatus.OK)

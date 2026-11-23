@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength, MaxLength, Matches, IsNotEmpty, IsOptional } from 'class-validator';
+import { IsEmail, IsString, MinLength, MaxLength, Matches, IsNotEmpty } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class RegisterRequestDto {
@@ -28,16 +28,4 @@ export class RegisterRequestDto {
   @MaxLength(255)
   @Transform(({ value }) => value?.trim())
   fullName!: string;
-
-  @IsNotEmpty()
-  @IsString()
-  @MaxLength(512)
-  @Transform(({ value }) => value?.trim())
-  address!: string;
-  @IsNotEmpty()
-  @IsString()
-  @Matches(/^\+94[0-9]{9}$/, {
-    message: 'Phone number must be in format: +94XXXXXXXXX',
-  })
-  phoneNo?: string;
 }
