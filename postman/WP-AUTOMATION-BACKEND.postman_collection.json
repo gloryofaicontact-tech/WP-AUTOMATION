@@ -108,6 +108,21 @@
 			"key": "notificationId",
 			"value": "",
 			"type": "string"
+		},
+		{
+			"key": "contentTypeSlug",
+			"value": "post",
+			"type": "string"
+		},
+		{
+			"key": "wpPostId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "snapshotId",
+			"value": "",
+			"type": "string"
 		}
 	],
 	"item": [
@@ -686,7 +701,342 @@
 			]
 		},
 		{
-			"name": "3. Users & Profile",
+			"name": "3. Content Types & Discovery",
+			"item": [
+				{
+					"name": "Discover Content Types",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const res = pm.response.json();",
+									"    const list = res.data || [];",
+									"    if (list.length > 0) {",
+									"        pm.collectionVariables.set('contentTypeSlug', list[0].slug);",
+									"        console.log('Saved contentTypeSlug to collection variables:', list[0].slug);",
+									"    }",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/websites/{{websiteId}}/content-types/discover",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"websites",
+								"{{websiteId}}",
+								"content-types",
+								"discover"
+							]
+						}
+					}
+				},
+				{
+					"name": "List Discovered Content Types",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/websites/{{websiteId}}/content-types",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"websites",
+								"{{websiteId}}",
+								"content-types"
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Content Type Schema & Taxonomies",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/websites/{{websiteId}}/content-types/{{contentTypeSlug}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"websites",
+								"{{websiteId}}",
+								"content-types",
+								"{{contentTypeSlug}}"
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "4. Live Content (Posts & CPTs)",
+			"item": [
+				{
+					"name": "List Live Content (Paginated)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const res = pm.response.json();",
+									"    const items = res.data || [];",
+									"    if (items.length > 0) {",
+									"        pm.collectionVariables.set('wpPostId', items[0].id);",
+									"        console.log('Saved wpPostId to collection variables:', items[0].id);",
+									"    }",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/websites/{{websiteId}}/content/{{contentTypeSlug}}?page=1&limit=10",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"websites",
+								"{{websiteId}}",
+								"content",
+								"{{contentTypeSlug}}"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Search Live Content",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/websites/{{websiteId}}/content/{{contentTypeSlug}}?search=news&limit=10",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"websites",
+								"{{websiteId}}",
+								"content",
+								"{{contentTypeSlug}}"
+							],
+							"query": [
+								{
+									"key": "search",
+									"value": "news"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Single Live Content Item (Full Raw)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/websites/{{websiteId}}/content/{{contentTypeSlug}}/{{wpPostId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"websites",
+								"{{websiteId}}",
+								"content",
+								"{{contentTypeSlug}}",
+								"{{wpPostId}}"
+							]
+						}
+					}
+				},
+				{
+					"name": "Ingest Content Item into Workflow (Snapshot)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const res = pm.response.json();",
+									"    const snapshot = res.data || res;",
+									"    if (snapshot.id) {",
+									"        pm.collectionVariables.set('snapshotId', snapshot.id);",
+									"        console.log('Saved snapshotId to collection variables:', snapshot.id);",
+									"    }",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/websites/{{websiteId}}/content/{{contentTypeSlug}}/{{wpPostId}}/ingest",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"websites",
+								"{{websiteId}}",
+								"content",
+								"{{contentTypeSlug}}",
+								"{{wpPostId}}",
+								"ingest"
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "5. Content Snapshots (Workflow)",
+			"item": [
+				{
+					"name": "List Workflow Snapshots",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const res = pm.response.json();",
+									"    const items = res.data?.data || res.data || [];",
+									"    if (items.length > 0 && !pm.collectionVariables.get('snapshotId')) {",
+									"        pm.collectionVariables.set('snapshotId', items[0].id);",
+									"    }",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/articles/snapshots?page=1&limit=10",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"articles",
+								"snapshots"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Filter Snapshots by Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/articles/snapshots?workflowStatus=IMPORTED&page=1&limit=10",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"articles",
+								"snapshots"
+							],
+							"query": [
+								{
+									"key": "workflowStatus",
+									"value": "IMPORTED"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Snapshot Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/articles/snapshots/{{snapshotId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"articles",
+								"snapshots",
+								"{{snapshotId}}"
+							]
+						}
+					}
+				},
+				{
+					"name": "Remove Snapshot from Workflow",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/articles/snapshots/{{snapshotId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"articles",
+								"snapshots",
+								"{{snapshotId}}"
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "6. Users & Profile",
 			"item": [
 				{
 					"name": "Update Profile",
@@ -734,7 +1084,7 @@
 			]
 		},
 		{
-			"name": "4. Notifications",
+			"name": "7. Notifications",
 			"item": [
 				{
 					"name": "Get Notifications",
@@ -867,7 +1217,7 @@
 			]
 		},
 		{
-			"name": "5. Health",
+			"name": "8. Health",
 			"item": [
 				{
 					"name": "Health Check",

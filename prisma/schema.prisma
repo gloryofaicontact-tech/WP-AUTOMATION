@@ -156,6 +156,9 @@ model Website {
   createdById         String?       @map("created_by_id") @db.Uuid
   createdBy           User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
+  contentTypes        ContentType[]
+  contentSnapshots    ContentSnapshot[]
+
   createdAt           DateTime      @default(now()) @map("created_at")
   updatedAt           DateTime      @updatedAt @map("updated_at")
 
@@ -166,8 +169,101 @@ model Website {
 }
 
 // ============================================
+// DYNAMIC CONTENT TYPES & REGISTRY
+// ============================================
+
+model ContentType {
+  id               String                  @id @default(uuid()) @db.Uuid
+  websiteId        String                  @map("website_id") @db.Uuid
+
+  slug             String                  @db.VarChar(100)
+  name             String                  @db.VarChar(255)
+  description      String?                 @db.Text
+
+  restNamespace    String                  @default("wp/v2") @map("rest_namespace") @db.VarChar(100)
+  restBase         String                  @map("rest_base") @db.VarChar(150)
+
+  hierarchical     Boolean                 @default(false)
+  supports         Json?
+  taxonomies       Json?
+  schema           Json?
+  schemaStatus     ContentTypeSchemaStatus @default(PARTIALLY_DISCOVERED) @map("schema_status")
+
+  isActive         Boolean                 @default(true) @map("is_active")
+  lastDiscoveredAt DateTime                @default(now()) @map("last_discovered_at")
+
+  website          Website                 @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  snapshots        ContentSnapshot[]
+
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
+
+  @@unique([websiteId, slug])
+  @@index([websiteId, isActive])
+  @@map("content_types")
+}
+
+// ============================================
+// CONTENT SNAPSHOTS (ENHANCEMENT WORKFLOW)
+// ============================================
+
+model ContentSnapshot {
+  id               String         @id @default(uuid()) @db.Uuid
+  websiteId        String         @map("website_id") @db.Uuid
+  contentTypeId    String         @map("content_type_id") @db.Uuid
+
+  wpPostId         Int            @map("wp_post_id")
+  slug             String         @db.VarChar(255)
+  title            String         @db.Text
+  rawContent       String?        @map("raw_content") @db.Text
+  rawExcerpt       String?        @map("raw_excerpt") @db.Text
+
+  wpStatus         String         @default("publish") @map("wp_status") @db.VarChar(50)
+  wpUrl            String         @map("wp_url") @db.VarChar(512)
+  wpPublishedAt    DateTime?      @map("wp_published_at")
+  wpModifiedAt     DateTime?      @map("wp_modified_at")
+
+  featuredMediaId  Int?           @map("featured_media_id")
+  featuredMediaUrl String?        @map("featured_media_url") @db.VarChar(512)
+
+  originalData     Json           @map("original_data")
+  taxonomiesData   Json?          @map("taxonomies_data")
+  customFields     Json?          @map("custom_fields")
+
+  workflowStatus   WorkflowStatus @default(IMPORTED) @map("workflow_status")
+
+  website          Website        @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  contentType      ContentType    @relation(fields: [contentTypeId], references: [id], onDelete: Restrict)
+
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  @@unique([websiteId, wpPostId])
+  @@index([websiteId, workflowStatus])
+  @@index([contentTypeId])
+  @@map("content_snapshots")
+}
+
+// ============================================
 // ENUMS
 // ============================================
+
+enum ContentTypeSchemaStatus {
+  FULLY_DISCOVERED
+  PARTIALLY_DISCOVERED
+  UNAVAILABLE
+}
+
+enum WorkflowStatus {
+  IMPORTED
+  ANALYZING
+  ANALYSIS_COMPLETED
+  PENDING_APPROVAL
+  APPROVED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+}
 
 enum WebsiteStatus {
   CONNECTED
