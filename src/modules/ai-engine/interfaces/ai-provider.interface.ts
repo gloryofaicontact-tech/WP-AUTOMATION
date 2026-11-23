@@ -2,9 +2,11 @@ import { ParsedArticleResult, ArticleParsingContext } from './parsed-article.int
 
 export interface AiProvider {
   readonly providerName: string;
-  isAvailable(): boolean;
+  isAvailable(apiKey?: string): boolean;
   parseAndStructureDocument(
     rawDocument: string,
     context: ArticleParsingContext,
+    apiKey?: string,
+    modelOverride?: string,
   ): Promise<ParsedArticleResult>;
 }

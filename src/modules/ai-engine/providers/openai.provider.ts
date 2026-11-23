@@ -10,39 +10,41 @@ export class OpenAiProvider implements AiProvider {
   readonly providerName = 'openai';
   private readonly logger = new Logger(OpenAiProvider.name);
   private client: OpenAI | null = null;
-  private readonly model: string;
+  private readonly defaultModel: string;
 
   constructor(private readonly config: ConfigService) {
     const apiKey = this.config.get<string>('OPENAI_API_KEY')?.trim();
-    this.model = this.config.get<string>('OPENAI_MODEL', 'gpt-4o-mini');
+    this.defaultModel = this.config.get<string>('OPENAI_MODEL', 'gpt-4o-mini');
 
     if (apiKey) {
       this.client = new OpenAI({ apiKey });
-      this.logger.log(`OpenAiProvider initialized with model: ${this.model}`);
-    } else {
-      this.logger.debug('OPENAI_API_KEY not set. OpenAiProvider will be unavailable.');
+      this.logger.log(`OpenAiProvider initialized with model: ${this.defaultModel}`);
     }
   }
 
-  isAvailable(): boolean {
-    return this.client !== null;
+  isAvailable(apiKey?: string): boolean {
+    return Boolean(apiKey || this.client);
   }
 
   async parseAndStructureDocument(
     rawDocument: string,
     context: ArticleParsingContext,
+    apiKey?: string,
+    modelOverride?: string,
   ): Promise<ParsedArticleResult> {
-    if (!this.client) {
-      throw new Error('OpenAiProvider is unavailable: OPENAI_API_KEY is not configured.');
+    const activeClient = apiKey ? new OpenAI({ apiKey }) : this.client;
+    if (!activeClient) {
+      throw new Error('OpenAiProvider is unavailable: No OpenAI API key provided or configured.');
     }
 
+    const model = modelOverride || this.defaultModel;
     const systemPrompt = PromptBuilder.buildSystemPrompt(context);
     const userPrompt = PromptBuilder.buildUserPrompt(rawDocument);
 
-    this.logger.debug(`Sending document to OpenAI (${this.model})...`);
+    this.logger.debug(`Sending document to OpenAI (${model})...`);
 
-    const response = await this.client.chat.completions.create({
-      model: this.model,
+    const response = await activeClient.chat.completions.create({
+      model,
       temperature: 0.2,
       response_format: { type: 'json_object' },
       messages: [

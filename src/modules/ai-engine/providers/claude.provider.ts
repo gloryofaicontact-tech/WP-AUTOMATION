@@ -10,39 +10,41 @@ export class ClaudeProvider implements AiProvider {
   readonly providerName = 'claude';
   private readonly logger = new Logger(ClaudeProvider.name);
   private client: Anthropic | null = null;
-  private readonly model: string;
+  private readonly defaultModel: string;
 
   constructor(private readonly config: ConfigService) {
     const apiKey = this.config.get<string>('ANTHROPIC_API_KEY')?.trim();
-    this.model = this.config.get<string>('ANTHROPIC_MODEL', 'claude-3-5-sonnet-latest');
+    this.defaultModel = this.config.get<string>('ANTHROPIC_MODEL', 'claude-3-5-sonnet-latest');
 
     if (apiKey) {
       this.client = new Anthropic({ apiKey });
-      this.logger.log(`ClaudeProvider initialized with model: ${this.model}`);
-    } else {
-      this.logger.debug('ANTHROPIC_API_KEY not set. ClaudeProvider will be unavailable.');
+      this.logger.log(`ClaudeProvider initialized with model: ${this.defaultModel}`);
     }
   }
 
-  isAvailable(): boolean {
-    return this.client !== null;
+  isAvailable(apiKey?: string): boolean {
+    return Boolean(apiKey || this.client);
   }
 
   async parseAndStructureDocument(
     rawDocument: string,
     context: ArticleParsingContext,
+    apiKey?: string,
+    modelOverride?: string,
   ): Promise<ParsedArticleResult> {
-    if (!this.client) {
-      throw new Error('ClaudeProvider is unavailable: ANTHROPIC_API_KEY is not configured.');
+    const activeClient = apiKey ? new Anthropic({ apiKey }) : this.client;
+    if (!activeClient) {
+      throw new Error('ClaudeProvider is unavailable: No Anthropic API key provided or configured.');
     }
 
+    const model = modelOverride || this.defaultModel;
     const systemPrompt = PromptBuilder.buildSystemPrompt(context);
     const userPrompt = PromptBuilder.buildUserPrompt(rawDocument);
 
-    this.logger.debug(`Sending document to Claude (${this.model})...`);
+    this.logger.debug(`Sending document to Claude (${model})...`);
 
-    const response = await this.client.messages.create({
-      model: this.model,
+    const response = await activeClient.messages.create({
+      model,
       max_tokens: 4096,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],

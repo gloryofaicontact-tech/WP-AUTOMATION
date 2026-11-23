@@ -3,6 +3,7 @@ import { EnvatoProvider } from './providers/envato.provider';
 import { StockFallbackProvider } from './providers/stock-fallback.provider';
 import { MatchedImagePlaceholder } from './interfaces/media-asset.interface';
 import { ImagePlaceholder } from '../ai-engine/interfaces/image-placeholder.interface';
+import { AiSettingsService } from '../ai-engine/settings/ai-settings.service';
 
 @Injectable()
 export class MediaDiscoveryService {
@@ -11,6 +12,7 @@ export class MediaDiscoveryService {
   constructor(
     private readonly envatoProvider: EnvatoProvider,
     private readonly stockFallbackProvider: StockFallbackProvider,
+    private readonly aiSettingsService: AiSettingsService,
   ) {}
 
   /**
@@ -24,11 +26,14 @@ export class MediaDiscoveryService {
       return [];
     }
 
+    const effectiveKeys = await this.aiSettingsService.getEffectiveKeys();
+    const envatoToken = effectiveKeys.envatoToken || undefined;
+
     this.logger.log(`Discovering media assets for ${placeholders.length} layout placeholders...`);
 
     const matchedPlaceholders = await Promise.all(
       placeholders.map(async (placeholder) => {
-        let assets = await this.envatoProvider.searchPhotos(placeholder.recommendedSearch, 4);
+        let assets = await this.envatoProvider.searchPhotos(placeholder.recommendedSearch, 4, envatoToken);
 
         if (!assets || assets.length === 0) {
           this.logger.debug(

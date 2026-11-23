@@ -10,39 +10,41 @@ export class GeminiProvider implements AiProvider {
   readonly providerName = 'gemini';
   private readonly logger = new Logger(GeminiProvider.name);
   private client: GoogleGenAI | null = null;
-  private readonly model: string;
+  private readonly defaultModel: string;
 
   constructor(private readonly config: ConfigService) {
     const apiKey = this.config.get<string>('GEMINI_API_KEY')?.trim();
-    this.model = this.config.get<string>('GEMINI_MODEL', 'gemini-2.5-flash');
+    this.defaultModel = this.config.get<string>('GEMINI_MODEL', 'gemini-2.5-flash');
 
     if (apiKey) {
       this.client = new GoogleGenAI({ apiKey });
-      this.logger.log(`GeminiProvider initialized with model: ${this.model}`);
-    } else {
-      this.logger.debug('GEMINI_API_KEY not set. GeminiProvider will be unavailable.');
+      this.logger.log(`GeminiProvider initialized with model: ${this.defaultModel}`);
     }
   }
 
-  isAvailable(): boolean {
-    return this.client !== null;
+  isAvailable(apiKey?: string): boolean {
+    return Boolean(apiKey || this.client);
   }
 
   async parseAndStructureDocument(
     rawDocument: string,
     context: ArticleParsingContext,
+    apiKey?: string,
+    modelOverride?: string,
   ): Promise<ParsedArticleResult> {
-    if (!this.client) {
-      throw new Error('GeminiProvider is unavailable: GEMINI_API_KEY is not configured.');
+    const activeClient = apiKey ? new GoogleGenAI({ apiKey }) : this.client;
+    if (!activeClient) {
+      throw new Error('GeminiProvider is unavailable: No Gemini API key provided or configured.');
     }
 
+    const model = modelOverride || this.defaultModel;
     const systemPrompt = PromptBuilder.buildSystemPrompt(context);
     const userPrompt = PromptBuilder.buildUserPrompt(rawDocument);
 
-    this.logger.debug(`Sending document to Gemini (${this.model})...`);
+    this.logger.debug(`Sending document to Gemini (${model})...`);
 
-    const response = await this.client.models.generateContent({
-      model: this.model,
+    const response = await activeClient.models.generateContent({
+      model,
       contents: `${systemPrompt}\n\n${userPrompt}`,
       config: {
         responseMimeType: 'application/json',

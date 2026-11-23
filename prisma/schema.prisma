@@ -249,6 +249,28 @@ model ContentSnapshot {
 }
 
 // ============================================
+// AI & SYSTEM SETTINGS
+// ============================================
+
+model AiSetting {
+  id              String   @id @default(uuid()) @db.Uuid
+  activeProvider  String   @default("claude") @map("active_provider") @db.VarChar(50)
+
+  anthropicApiKey String?  @map("anthropic_api_key") @db.Text
+  geminiApiKey    String?  @map("gemini_api_key") @db.Text
+  openAiApiKey    String?  @map("openai_api_key") @db.Text
+  envatoApiToken  String?  @map("envato_api_token") @db.Text
+
+  models          Json?
+  updatedById     String?  @map("updated_by_id") @db.Uuid
+
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("ai_settings")
+}
+
+// ============================================
 // ENUMS
 // ============================================
 

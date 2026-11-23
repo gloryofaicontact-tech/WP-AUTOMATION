@@ -16,15 +16,16 @@ export class EnvatoProvider {
     }
   }
 
-  isAvailable(): boolean {
-    return Boolean(this.apiToken);
+  isAvailable(tokenOverride?: string): boolean {
+    return Boolean(tokenOverride || this.apiToken);
   }
 
   /**
    * Searches Envato Elements / Market for high-resolution photo assets.
    */
-  async searchPhotos(query: string, limit = 4): Promise<DiscoveredImageAsset[]> {
-    if (!this.apiToken) {
+  async searchPhotos(query: string, limit = 4, tokenOverride?: string): Promise<DiscoveredImageAsset[]> {
+    const activeToken = tokenOverride || this.apiToken;
+    if (!activeToken) {
       return [];
     }
 
@@ -37,7 +38,7 @@ export class EnvatoProvider {
       const response = await fetch(url, {
         method: 'GET',
         headers: {
-          Authorization: `Bearer ${this.apiToken}`,
+          Authorization: `Bearer ${activeToken}`,
           'User-Agent': 'WP-Automation-Backend/1.0',
           Accept: 'application/json',
         },

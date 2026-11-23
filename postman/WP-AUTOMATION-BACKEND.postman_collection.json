@@ -169,7 +169,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"superadmin@gmail.com\",\n  \"password\": \"AdminPassword123!\",\n  \"deviceName\": \"Postman Desktop Client\"\n}"
+              "raw": "{\n  \"email\": \"editor@example.com\",\n  \"password\": \"SecurePass123!\",\n  \"deviceName\": \"Postman Desktop Client\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
@@ -1196,6 +1196,84 @@
               ]
             },
             "description": "Uploads the selected featured image to WordPress Media Library, creates the new live post via REST API, and returns the live post URL."
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. AI Settings & Provider Management",
+      "item": [
+        {
+          "name": "1. Get AI Settings & Active Provider",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/settings/ai",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "settings",
+                "ai"
+              ]
+            },
+            "description": "Returns currently active AI provider (claude/gemini/openai), masked keys, and configured models."
+          }
+        },
+        {
+          "name": "2. Update AI Provider & API Keys",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"activeProvider\": \"claude\",\n  \"anthropicApiKey\": \"sk-ant-api03-sample-key\",\n  \"geminiApiKey\": \"\",\n  \"openAiApiKey\": \"\",\n  \"envatoApiToken\": \"\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/settings/ai",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "settings",
+                "ai"
+              ]
+            },
+            "description": "Allows switching the active provider dynamically and updating encrypted API keys."
+          }
+        },
+        {
+          "name": "3. Test AI Key Live (Health Check)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"claude\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/settings/ai/test",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "settings",
+                "ai",
+                "test"
+              ]
+            },
+            "description": "Sends a live ping prompt to Claude, Gemini, OpenAI, or Envato to test connectivity, return latency (ms) and verify the key."
           }
         }
       ]

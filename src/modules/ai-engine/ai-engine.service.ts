@@ -6,6 +6,7 @@ import { ClaudeProvider } from './providers/claude.provider';
 import { GeminiProvider } from './providers/gemini.provider';
 import { OpenAiProvider } from './providers/openai.provider';
 import { RuleBasedFallbackProvider } from './providers/fallback.provider';
+import { AiSettingsService } from './settings/ai-settings.service';
 
 @Injectable()
 export class AiEngineService {
@@ -14,6 +15,7 @@ export class AiEngineService {
 
   constructor(
     private readonly config: ConfigService,
+    private readonly aiSettingsService: AiSettingsService,
     private readonly claudeProvider: ClaudeProvider,
     private readonly geminiProvider: GeminiProvider,
     private readonly openAiProvider: OpenAiProvider,
@@ -26,29 +28,19 @@ export class AiEngineService {
   }
 
   /**
-   * Returns list of configured active providers
-   */
-  getAvailableProviders(): string[] {
-    const list: string[] = [];
-    for (const [name, provider] of this.providers.entries()) {
-      if (provider.isAvailable()) {
-        list.push(name);
-      }
-    }
-    return list;
-  }
-
-  /**
    * Main entry point: Parses and structures a raw document into WordPress post format.
-   * Dynamically routes to the preferred provider, with automatic fallback resilience.
+   * Dynamically checks database settings first, with automatic provider fallback resilience.
    */
   async parseArticle(
     rawDocument: string,
     context: ArticleParsingContext,
     preferredProviderOverride?: string,
   ): Promise<ParsedArticleResult> {
+    const effective = await this.aiSettingsService.getEffectiveKeys();
+
     const configuredProvider =
       preferredProviderOverride ||
+      effective.activeProvider ||
       this.config.get<string>('AI_PROVIDER', 'claude').toLowerCase().trim();
 
     const providerOrder = [
@@ -59,31 +51,49 @@ export class AiEngineService {
       'fallback',
     ];
 
-    // Remove duplicates while keeping order
     const executionChain = Array.from(new Set(providerOrder));
-
-    let lastError: any = null;
 
     for (const providerName of executionChain) {
       const provider = this.providers.get(providerName);
-      if (!provider || !provider.isAvailable()) {
+      if (!provider) continue;
+
+      let keyToUse: string | undefined;
+      let modelOverride: string | undefined;
+
+      if (providerName === 'claude') {
+        keyToUse = effective.anthropicKey || undefined;
+        modelOverride = effective.models?.claude;
+      } else if (providerName === 'gemini') {
+        keyToUse = effective.geminiKey || undefined;
+        modelOverride = effective.models?.gemini;
+      } else if (providerName === 'openai') {
+        keyToUse = effective.openAiKey || undefined;
+        modelOverride = effective.models?.openai;
+      }
+
+      if (!provider.isAvailable(keyToUse)) {
         continue;
       }
 
       try {
         this.logger.log(`Attempting document extraction using provider: "${providerName}"`);
-        const result = await provider.parseAndStructureDocument(rawDocument, context);
+        const result = await provider.parseAndStructureDocument(
+          rawDocument,
+          context,
+          keyToUse,
+          modelOverride,
+        );
         this.logger.log(
-          `Document successfully structured by "${providerName}" (Title: "${result.title}", Headings/Placeholders: ${result.imagePlaceholders?.length || 0})`,
+          `Document successfully structured by "${providerName}" (Title: "${result.title}")`,
         );
         return result;
       } catch (err: any) {
-        this.logger.warn(`Provider "${providerName}" failed: ${err.message}. Trying next available provider...`);
-        lastError = err;
+        this.logger.warn(
+          `Provider "${providerName}" failed: ${err.message}. Trying next available provider...`,
+        );
       }
     }
 
-    // Final fallback to heuristic parser if everything else threw
     this.logger.warn('All external LLM providers failed or were unconfigured. Using RuleBasedFallbackProvider.');
     return this.fallbackProvider.parseAndStructureDocument(rawDocument, context);
   }
