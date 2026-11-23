@@ -1,1244 +1,1409 @@
 {
-	"info": {
-		"_postman_id": "wp-automation-backend-collection-v1",
-		"name": "WP-AUTOMATION-BACKEND",
-		"description": "Comprehensive API collection for WP-AUTOMATION-BACKEND with automatic token refresh, session management, websites connectivity, users, and notifications.",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-	},
-	"auth": {
-		"type": "bearer",
-		"bearer": [
-			{
-				"key": "token",
-				"value": "{{accessToken}}",
-				"type": "string"
-			}
-		]
-	},
-	"event": [
-		{
-			"listen": "prerequest",
-			"script": {
-				"type": "text/javascript",
-				"exec": [
-					"// ================================================================",
-					"// WP-AUTOMATION AUTOMATIC TOKEN REFRESH SCRIPT",
-					"// ================================================================",
-					"const tokenExpiry = pm.collectionVariables.get('tokenExpiry');",
-					"const refreshToken = pm.collectionVariables.get('refreshToken');",
-					"const baseUrl = pm.collectionVariables.get('baseUrl') || 'http://localhost:3000/api/v1';",
-					"",
-					"const requestUrl = pm.request.url.toString();",
-					"const isAuthBypass = requestUrl.includes('/auth/login') ||",
-					"                     requestUrl.includes('/auth/refresh') ||",
-					"                     requestUrl.includes('/auth/register') ||",
-					"                     requestUrl.includes('/auth/forgot-password') ||",
-					"                     requestUrl.includes('/auth/reset-password') ||",
-					"                     requestUrl.includes('/auth/verify-email') ||",
-					"                     requestUrl.includes('/auth/resend-verification') ||",
-					"                     requestUrl.includes('/health');",
-					"",
-					"// Refresh if token is missing expiry or expiring within 60 seconds",
-					"if (!isAuthBypass && refreshToken && tokenExpiry && Date.now() > (Number(tokenExpiry) - 60000)) {",
-					"    console.log('[Postman Auto-Refresh] Access token expired or expiring soon. Refreshing...');",
-					"    ",
-					"    pm.sendRequest({",
-					"        url: baseUrl + '/auth/refresh',",
-					"        method: 'POST',",
-					"        header: {",
-					"            'Content-Type': 'application/json'",
-					"        },",
-					"        body: {",
-					"            mode: 'raw',",
-					"            raw: JSON.stringify({ refreshToken: refreshToken })",
-					"        }",
-					"    }, function (err, res) {",
-					"        if (!err && res.code === 200) {",
-					"            const body = res.json();",
-					"            const tokens = body.data || body;",
-					"            if (tokens.accessToken) {",
-					"                pm.collectionVariables.set('accessToken', tokens.accessToken);",
-					"                if (tokens.refreshToken) {",
-					"                    pm.collectionVariables.set('refreshToken', tokens.refreshToken);",
-					"                }",
-					"                pm.collectionVariables.set('tokenExpiry', Date.now() + (14 * 60 * 1000));",
-					"                console.log('[Postman Auto-Refresh] Successfully refreshed access token!');",
-					"            }",
-					"        } else {",
-					"            console.warn('[Postman Auto-Refresh] Failed to refresh token. Please login again.', err || res.text());",
-					"        }",
-					"    });",
-					"}"
-				]
-			}
-		}
-	],
-	"variable": [
-		{
-			"key": "baseUrl",
-			"value": "http://localhost:3000/api/v1",
-			"type": "string"
-		},
-		{
-			"key": "accessToken",
-			"value": "",
-			"type": "string"
-		},
-		{
-			"key": "refreshToken",
-			"value": "",
-			"type": "string"
-		},
-		{
-			"key": "tokenExpiry",
-			"value": "0",
-			"type": "string"
-		},
-		{
-			"key": "websiteId",
-			"value": "",
-			"type": "string"
-		},
-		{
-			"key": "sessionId",
-			"value": "",
-			"type": "string"
-		},
-		{
-			"key": "notificationId",
-			"value": "",
-			"type": "string"
-		},
-		{
-			"key": "contentTypeSlug",
-			"value": "post",
-			"type": "string"
-		},
-		{
-			"key": "wpPostId",
-			"value": "",
-			"type": "string"
-		},
-		{
-			"key": "snapshotId",
-			"value": "",
-			"type": "string"
-		}
-	],
-	"item": [
-		{
-			"name": "1. Authentication",
-			"item": [
-				{
-					"name": "Login",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"if (pm.response.code === 200 || pm.response.code === 201) {",
-									"    const res = pm.response.json();",
-									"    const data = res.data || res;",
-									"    if (data.accessToken) {",
-									"        pm.collectionVariables.set('accessToken', data.accessToken);",
-									"        pm.collectionVariables.set('refreshToken', data.refreshToken);",
-									"        pm.collectionVariables.set('tokenExpiry', Date.now() + (14 * 60 * 1000));",
-									"        console.log('Login successful! Saved accessToken and refreshToken to collection variables.');",
-									"    }",
-									"}"
-								]
-							}
-						}
-					],
-					"request": {
-						"auth": {
-							"type": "noauth"
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"email\": \"superadmin@gmail.com\",\n  \"password\": \"AdminPassword123!\",\n  \"deviceName\": \"Postman Desktop Client\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/login",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"login"
-							]
-						}
-					}
-				},
-				{
-					"name": "Refresh Token",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"if (pm.response.code === 200) {",
-									"    const res = pm.response.json();",
-									"    const data = res.data || res;",
-									"    if (data.accessToken) {",
-									"        pm.collectionVariables.set('accessToken', data.accessToken);",
-									"        if (data.refreshToken) {",
-									"            pm.collectionVariables.set('refreshToken', data.refreshToken);",
-									"        }",
-									"        pm.collectionVariables.set('tokenExpiry', Date.now() + (14 * 60 * 1000));",
-									"        console.log('Token manual refresh successful!');",
-									"    }",
-									"}"
-								]
-							}
-						}
-					],
-					"request": {
-						"auth": {
-							"type": "noauth"
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/refresh",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"refresh"
-							]
-						}
-					}
-				},
-				{
-					"name": "Register",
-					"request": {
-						"auth": {
-							"type": "noauth"
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"email\": \"editor@example.com\",\n  \"password\": \"SecurePass123!\",\n  \"confirmPassword\": \"SecurePass123!\",\n  \"fullName\": \"John Editor\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/register",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"register"
-							]
-						}
-					}
-				},
-				{
-					"name": "Get Current User Profile",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/auth/me",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"me"
-							]
-						}
-					}
-				},
-				{
-					"name": "Register Staff Member (Admin/SuperAdmin only)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"email\": \"newstaff@example.com\",\n  \"fullName\": \"Jane Reviewer\",\n  \"role\": \"REVIEWER\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/register-staff",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"register-staff"
-							]
-						}
-					}
-				},
-				{
-					"name": "Forgot Password",
-					"request": {
-						"auth": {
-							"type": "noauth"
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"email\": \"superadmin@gmail.com\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/forgot-password",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"forgot-password"
-							]
-						}
-					}
-				},
-				{
-					"name": "Reset Password",
-					"request": {
-						"auth": {
-							"type": "noauth"
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"token\": \"RAW_TOKEN_FROM_EMAIL_OR_DB\",\n  \"newPassword\": \"NewPassword123!\",\n  \"confirmPassword\": \"NewPassword123!\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/reset-password",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"reset-password"
-							]
-						}
-					}
-				},
-				{
-					"name": "Change Password",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"oldPassword\": \"AdminPassword123!\",\n  \"newPassword\": \"UpdatedPassword123!\",\n  \"confirmPassword\": \"UpdatedPassword123!\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/change-password",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"change-password"
-							]
-						}
-					}
-				},
-				{
-					"name": "Verify Email",
-					"request": {
-						"auth": {
-							"type": "noauth"
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"token\": \"RAW_TOKEN_FROM_EMAIL\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/verify-email",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"verify-email"
-							]
-						}
-					}
-				},
-				{
-					"name": "Resend Verification Email",
-					"request": {
-						"auth": {
-							"type": "noauth"
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"email\": \"editor@example.com\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/resend-verification",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"resend-verification"
-							]
-						}
-					}
-				},
-				{
-					"name": "Get Active Sessions",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"if (pm.response.code === 200) {",
-									"    const res = pm.response.json();",
-									"    const sessions = res.data?.sessions || res.data || [];",
-									"    if (sessions.length > 0) {",
-									"        pm.collectionVariables.set('sessionId', sessions[0].id);",
-									"    }",
-									"}"
-								]
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/auth/sessions",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"sessions"
-							]
-						}
-					}
-				},
-				{
-					"name": "Revoke Single Session",
-					"request": {
-						"method": "DELETE",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/auth/sessions/{{sessionId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"sessions",
-								"{{sessionId}}"
-							]
-						}
-					}
-				},
-				{
-					"name": "Logout (Current Session)",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/auth/logout",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"logout"
-							]
-						}
-					}
-				},
-				{
-					"name": "Logout All Sessions",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/auth/logout-all",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"auth",
-								"logout-all"
-							]
-						}
-					}
-				}
-			]
-		},
-		{
-			"name": "2. Websites",
-			"item": [
-				{
-					"name": "Connect Website",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"if (pm.response.code === 201) {",
-									"    const res = pm.response.json();",
-									"    const website = res.data || res;",
-									"    if (website.id) {",
-									"        pm.collectionVariables.set('websiteId', website.id);",
-									"        console.log('Saved websiteId to collection variables:', website.id);",
-									"    }",
-									"}"
-								]
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"name\": \"My Tech Blog\",\n  \"url\": \"https://example.com\",\n  \"username\": \"wp_admin\",\n  \"applicationPassword\": \"xxxx xxxx xxxx xxxx xxxx xxxx\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/websites",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"websites"
-							]
-						}
-					}
-				},
-				{
-					"name": "List Websites",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"if (pm.response.code === 200) {",
-									"    const res = pm.response.json();",
-									"    const items = res.data?.data || res.data || [];",
-									"    if (items.length > 0 && !pm.collectionVariables.get('websiteId')) {",
-									"        pm.collectionVariables.set('websiteId', items[0].id);",
-									"    }",
-									"}"
-								]
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/websites?page=1&limit=10",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"websites"
-							],
-							"query": [
-								{
-									"key": "page",
-									"value": "1"
-								},
-								{
-									"key": "limit",
-									"value": "10"
-								}
-							]
-						}
-					}
-				},
-				{
-					"name": "Get Website by ID",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/websites/{{websiteId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"websites",
-								"{{websiteId}}"
-							]
-						}
-					}
-				},
-				{
-					"name": "Test Website Connection",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/websites/{{websiteId}}/test-connection",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"websites",
-								"{{websiteId}}",
-								"test-connection"
-							]
-						}
-					}
-				},
-				{
-					"name": "Update Website",
-					"request": {
-						"method": "PATCH",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"name\": \"Updated Blog Name\",\n  \"isActive\": true\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/websites/{{websiteId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"websites",
-								"{{websiteId}}"
-							]
-						}
-					}
-				},
-				{
-					"name": "Delete / Disconnect Website",
-					"request": {
-						"method": "DELETE",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/websites/{{websiteId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"websites",
-								"{{websiteId}}"
-							]
-						}
-					}
-				}
-			]
-		},
-		{
-			"name": "3. Content Types & Discovery",
-			"item": [
-				{
-					"name": "Discover Content Types",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"if (pm.response.code === 200) {",
-									"    const res = pm.response.json();",
-									"    const list = res.data || [];",
-									"    if (list.length > 0) {",
-									"        pm.collectionVariables.set('contentTypeSlug', list[0].slug);",
-									"        console.log('Saved contentTypeSlug to collection variables:', list[0].slug);",
-									"    }",
-									"}"
-								]
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/websites/{{websiteId}}/content-types/discover",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"websites",
-								"{{websiteId}}",
-								"content-types",
-								"discover"
-							]
-						}
-					}
-				},
-				{
-					"name": "List Discovered Content Types",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/websites/{{websiteId}}/content-types",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"websites",
-								"{{websiteId}}",
-								"content-types"
-							]
-						}
-					}
-				},
-				{
-					"name": "Get Content Type Schema & Taxonomies",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/websites/{{websiteId}}/content-types/{{contentTypeSlug}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"websites",
-								"{{websiteId}}",
-								"content-types",
-								"{{contentTypeSlug}}"
-							]
-						}
-					}
-				}
-			]
-		},
-		{
-			"name": "4. Live Content (Posts & CPTs)",
-			"item": [
-				{
-					"name": "List Live Content (Paginated)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"if (pm.response.code === 200) {",
-									"    const res = pm.response.json();",
-									"    const items = res.data || [];",
-									"    if (items.length > 0) {",
-									"        pm.collectionVariables.set('wpPostId', items[0].id);",
-									"        console.log('Saved wpPostId to collection variables:', items[0].id);",
-									"    }",
-									"}"
-								]
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/websites/{{websiteId}}/content/{{contentTypeSlug}}?page=1&limit=10",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"websites",
-								"{{websiteId}}",
-								"content",
-								"{{contentTypeSlug}}"
-							],
-							"query": [
-								{
-									"key": "page",
-									"value": "1"
-								},
-								{
-									"key": "limit",
-									"value": "10"
-								}
-							]
-						}
-					}
-				},
-				{
-					"name": "Search Live Content",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/websites/{{websiteId}}/content/{{contentTypeSlug}}?search=news&limit=10",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"websites",
-								"{{websiteId}}",
-								"content",
-								"{{contentTypeSlug}}"
-							],
-							"query": [
-								{
-									"key": "search",
-									"value": "news"
-								},
-								{
-									"key": "limit",
-									"value": "10"
-								}
-							]
-						}
-					}
-				},
-				{
-					"name": "Get Single Live Content Item (Full Raw)",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/websites/{{websiteId}}/content/{{contentTypeSlug}}/{{wpPostId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"websites",
-								"{{websiteId}}",
-								"content",
-								"{{contentTypeSlug}}",
-								"{{wpPostId}}"
-							]
-						}
-					}
-				},
-				{
-					"name": "Ingest Content Item into Workflow (Snapshot)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"if (pm.response.code === 201) {",
-									"    const res = pm.response.json();",
-									"    const snapshot = res.data || res;",
-									"    if (snapshot.id) {",
-									"        pm.collectionVariables.set('snapshotId', snapshot.id);",
-									"        console.log('Saved snapshotId to collection variables:', snapshot.id);",
-									"    }",
-									"}"
-								]
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/websites/{{websiteId}}/content/{{contentTypeSlug}}/{{wpPostId}}/ingest",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"websites",
-								"{{websiteId}}",
-								"content",
-								"{{contentTypeSlug}}",
-								"{{wpPostId}}",
-								"ingest"
-							]
-						}
-					}
-				}
-			]
-		},
-		{
-			"name": "5. Content Snapshots (Workflow)",
-			"item": [
-				{
-					"name": "List Workflow Snapshots",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"if (pm.response.code === 200) {",
-									"    const res = pm.response.json();",
-									"    const items = res.data?.data || res.data || [];",
-									"    if (items.length > 0 && !pm.collectionVariables.get('snapshotId')) {",
-									"        pm.collectionVariables.set('snapshotId', items[0].id);",
-									"    }",
-									"}"
-								]
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/articles/snapshots?page=1&limit=10",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"articles",
-								"snapshots"
-							],
-							"query": [
-								{
-									"key": "page",
-									"value": "1"
-								},
-								{
-									"key": "limit",
-									"value": "10"
-								}
-							]
-						}
-					}
-				},
-				{
-					"name": "Filter Snapshots by Status",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/articles/snapshots?workflowStatus=IMPORTED&page=1&limit=10",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"articles",
-								"snapshots"
-							],
-							"query": [
-								{
-									"key": "workflowStatus",
-									"value": "IMPORTED"
-								},
-								{
-									"key": "page",
-									"value": "1"
-								},
-								{
-									"key": "limit",
-									"value": "10"
-								}
-							]
-						}
-					}
-				},
-				{
-					"name": "Get Snapshot Details",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/articles/snapshots/{{snapshotId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"articles",
-								"snapshots",
-								"{{snapshotId}}"
-							]
-						}
-					}
-				},
-				{
-					"name": "Remove Snapshot from Workflow",
-					"request": {
-						"method": "DELETE",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/articles/snapshots/{{snapshotId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"articles",
-								"snapshots",
-								"{{snapshotId}}"
-							]
-						}
-					}
-				}
-			]
-		},
-		{
-			"name": "6. Users & Profile",
-			"item": [
-				{
-					"name": "Update Profile",
-					"request": {
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"fullName\": \"Super Admin User\",\n  \"profileImage\": \"https://example.com/avatar.jpg\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/users/profile-update",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"users",
-								"profile-update"
-							]
-						}
-					}
-				},
-				{
-					"name": "Delete Profile",
-					"request": {
-						"method": "DELETE",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/users/profile-delete",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"users",
-								"profile-delete"
-							]
-						}
-					}
-				}
-			]
-		},
-		{
-			"name": "7. Notifications",
-			"item": [
-				{
-					"name": "Get Notifications",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"if (pm.response.code === 200) {",
-									"    const res = pm.response.json();",
-									"    const list = res.data?.data || res.data || [];",
-									"    if (list.length > 0) {",
-									"        pm.collectionVariables.set('notificationId', list[0].id);",
-									"    }",
-									"}"
-								]
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/notifications?page=1&limit=10",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"notifications"
-							],
-							"query": [
-								{
-									"key": "page",
-									"value": "1"
-								},
-								{
-									"key": "limit",
-									"value": "10"
-								}
-							]
-						}
-					}
-				},
-				{
-					"name": "Get Unread Count",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/notifications/unread-count",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"notifications",
-								"unread-count"
-							]
-						}
-					}
-				},
-				{
-					"name": "Mark Notification as Read",
-					"request": {
-						"method": "PATCH",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/notifications/{{notificationId}}/read",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"notifications",
-								"{{notificationId}}",
-								"read"
-							]
-						}
-					}
-				},
-				{
-					"name": "Mark All as Read",
-					"request": {
-						"method": "PATCH",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/notifications/mark-all-read",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"notifications",
-								"mark-all-read"
-							]
-						}
-					}
-				},
-				{
-					"name": "Delete Notification",
-					"request": {
-						"method": "DELETE",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/notifications/{{notificationId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"notifications",
-								"{{notificationId}}"
-							]
-						}
-					}
-				},
-				{
-					"name": "Delete All Notifications",
-					"request": {
-						"method": "DELETE",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/notifications",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"notifications"
-							]
-						}
-					}
-				}
-			]
-		},
-		{
-			"name": "8. Health",
-			"item": [
-				{
-					"name": "Health Check",
-					"request": {
-						"auth": {
-							"type": "noauth"
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/health",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"health"
-							]
-						}
-					}
-				}
-			]
-		}
-	]
+  "info": {
+    "_postman_id": "wp-automation-backend-collection-v1",
+    "name": "WP-AUTOMATION-BACKEND",
+    "description": "Comprehensive API collection for WP-AUTOMATION-BACKEND with automatic token refresh, session management, websites connectivity, users, and notifications.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// ================================================================",
+          "// WP-AUTOMATION AUTOMATIC TOKEN REFRESH SCRIPT",
+          "// ================================================================",
+          "const tokenExpiry = pm.collectionVariables.get('tokenExpiry');",
+          "const refreshToken = pm.collectionVariables.get('refreshToken');",
+          "const baseUrl = pm.collectionVariables.get('baseUrl') || 'http://localhost:3000/api/v1';",
+          "",
+          "const requestUrl = pm.request.url.toString();",
+          "const isAuthBypass = requestUrl.includes('/auth/login') ||",
+          "                     requestUrl.includes('/auth/refresh') ||",
+          "                     requestUrl.includes('/auth/register') ||",
+          "                     requestUrl.includes('/auth/forgot-password') ||",
+          "                     requestUrl.includes('/auth/reset-password') ||",
+          "                     requestUrl.includes('/auth/verify-email') ||",
+          "                     requestUrl.includes('/auth/resend-verification') ||",
+          "                     requestUrl.includes('/health');",
+          "",
+          "// Refresh if token is missing expiry or expiring within 60 seconds",
+          "if (!isAuthBypass && refreshToken && tokenExpiry && Date.now() > (Number(tokenExpiry) - 60000)) {",
+          "    console.log('[Postman Auto-Refresh] Access token expired or expiring soon. Refreshing...');",
+          "    ",
+          "    pm.sendRequest({",
+          "        url: baseUrl + '/auth/refresh',",
+          "        method: 'POST',",
+          "        header: {",
+          "            'Content-Type': 'application/json'",
+          "        },",
+          "        body: {",
+          "            mode: 'raw',",
+          "            raw: JSON.stringify({ refreshToken: refreshToken })",
+          "        }",
+          "    }, function (err, res) {",
+          "        if (!err && res.code === 200) {",
+          "            const body = res.json();",
+          "            const tokens = body.data || body;",
+          "            if (tokens.accessToken) {",
+          "                pm.collectionVariables.set('accessToken', tokens.accessToken);",
+          "                if (tokens.refreshToken) {",
+          "                    pm.collectionVariables.set('refreshToken', tokens.refreshToken);",
+          "                }",
+          "                pm.collectionVariables.set('tokenExpiry', Date.now() + (14 * 60 * 1000));",
+          "                console.log('[Postman Auto-Refresh] Successfully refreshed access token!');",
+          "            }",
+          "        } else {",
+          "            console.warn('[Postman Auto-Refresh] Failed to refresh token. Please login again.', err || res.text());",
+          "        }",
+          "    });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tokenExpiry",
+      "value": "0",
+      "type": "string"
+    },
+    {
+      "key": "websiteId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "sessionId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "notificationId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "contentTypeSlug",
+      "value": "post",
+      "type": "string"
+    },
+    {
+      "key": "wpPostId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "snapshotId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "articleId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    const res = pm.response.json();",
+                  "    const data = res.data || res;",
+                  "    if (data.accessToken) {",
+                  "        pm.collectionVariables.set('accessToken', data.accessToken);",
+                  "        pm.collectionVariables.set('refreshToken', data.refreshToken);",
+                  "        pm.collectionVariables.set('tokenExpiry', Date.now() + (14 * 60 * 1000));",
+                  "        console.log('Login successful! Saved accessToken and refreshToken to collection variables.');",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"superadmin@gmail.com\",\n  \"password\": \"AdminPassword123!\",\n  \"deviceName\": \"Postman Desktop Client\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const res = pm.response.json();",
+                  "    const data = res.data || res;",
+                  "    if (data.accessToken) {",
+                  "        pm.collectionVariables.set('accessToken', data.accessToken);",
+                  "        if (data.refreshToken) {",
+                  "            pm.collectionVariables.set('refreshToken', data.refreshToken);",
+                  "        }",
+                  "        pm.collectionVariables.set('tokenExpiry', Date.now() + (14 * 60 * 1000));",
+                  "        console.log('Token manual refresh successful!');",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "refresh"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Register",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"editor@example.com\",\n  \"password\": \"SecurePass123!\",\n  \"confirmPassword\": \"SecurePass123!\",\n  \"fullName\": \"John Editor\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Current User Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Register Staff Member (Admin/SuperAdmin only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newstaff@example.com\",\n  \"fullName\": \"Jane Reviewer\",\n  \"role\": \"REVIEWER\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register-staff",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register-staff"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"superadmin@gmail.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/forgot-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "forgot-password"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"RAW_TOKEN_FROM_EMAIL_OR_DB\",\n  \"newPassword\": \"NewPassword123!\",\n  \"confirmPassword\": \"NewPassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "reset-password"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"oldPassword\": \"AdminPassword123!\",\n  \"newPassword\": \"UpdatedPassword123!\",\n  \"confirmPassword\": \"UpdatedPassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/change-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "change-password"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Verify Email",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"RAW_TOKEN_FROM_EMAIL\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/verify-email",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "verify-email"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Resend Verification Email",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"editor@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/resend-verification",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "resend-verification"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Active Sessions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const res = pm.response.json();",
+                  "    const sessions = res.data?.sessions || res.data || [];",
+                  "    if (sessions.length > 0) {",
+                  "        pm.collectionVariables.set('sessionId', sessions[0].id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/sessions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "sessions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Revoke Single Session",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/sessions/{{sessionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "sessions",
+                "{{sessionId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Logout (Current Session)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Logout All Sessions",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout-all",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout-all"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Websites",
+      "item": [
+        {
+          "name": "Connect Website",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const res = pm.response.json();",
+                  "    const website = res.data || res;",
+                  "    if (website.id) {",
+                  "        pm.collectionVariables.set('websiteId', website.id);",
+                  "        console.log('Saved websiteId to collection variables:', website.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My Tech Blog\",\n  \"url\": \"https://example.com\",\n  \"username\": \"wp_admin\",\n  \"applicationPassword\": \"xxxx xxxx xxxx xxxx xxxx xxxx\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/websites",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "websites"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Websites",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const res = pm.response.json();",
+                  "    const items = res.data?.data || res.data || [];",
+                  "    if (items.length > 0 && !pm.collectionVariables.get('websiteId')) {",
+                  "        pm.collectionVariables.set('websiteId', items[0].id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/websites?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "websites"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Website by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/websites/{{websiteId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "websites",
+                "{{websiteId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Test Website Connection",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/websites/{{websiteId}}/test-connection",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "websites",
+                "{{websiteId}}",
+                "test-connection"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Website",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Blog Name\",\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/websites/{{websiteId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "websites",
+                "{{websiteId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete / Disconnect Website",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/websites/{{websiteId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "websites",
+                "{{websiteId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Content Types & Discovery",
+      "item": [
+        {
+          "name": "Discover Content Types",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const res = pm.response.json();",
+                  "    const list = res.data || [];",
+                  "    if (list.length > 0) {",
+                  "        pm.collectionVariables.set('contentTypeSlug', list[0].slug);",
+                  "        console.log('Saved contentTypeSlug to collection variables:', list[0].slug);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/websites/{{websiteId}}/content-types/discover",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "websites",
+                "{{websiteId}}",
+                "content-types",
+                "discover"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Discovered Content Types",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/websites/{{websiteId}}/content-types",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "websites",
+                "{{websiteId}}",
+                "content-types"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Content Type Schema & Taxonomies",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/websites/{{websiteId}}/content-types/{{contentTypeSlug}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "websites",
+                "{{websiteId}}",
+                "content-types",
+                "{{contentTypeSlug}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Live Content (Posts & CPTs)",
+      "item": [
+        {
+          "name": "List Live Content (Paginated)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const res = pm.response.json();",
+                  "    const items = res.data || [];",
+                  "    if (items.length > 0) {",
+                  "        pm.collectionVariables.set('wpPostId', items[0].id);",
+                  "        console.log('Saved wpPostId to collection variables:', items[0].id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/websites/{{websiteId}}/content/{{contentTypeSlug}}?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "websites",
+                "{{websiteId}}",
+                "content",
+                "{{contentTypeSlug}}"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search Live Content",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/websites/{{websiteId}}/content/{{contentTypeSlug}}?search=news&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "websites",
+                "{{websiteId}}",
+                "content",
+                "{{contentTypeSlug}}"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "news"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Single Live Content Item (Full Raw)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/websites/{{websiteId}}/content/{{contentTypeSlug}}/{{wpPostId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "websites",
+                "{{websiteId}}",
+                "content",
+                "{{contentTypeSlug}}",
+                "{{wpPostId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Ingest Content Item into Workflow (Snapshot)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const res = pm.response.json();",
+                  "    const snapshot = res.data || res;",
+                  "    if (snapshot.id) {",
+                  "        pm.collectionVariables.set('snapshotId', snapshot.id);",
+                  "        console.log('Saved snapshotId to collection variables:', snapshot.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/websites/{{websiteId}}/content/{{contentTypeSlug}}/{{wpPostId}}/ingest",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "websites",
+                "{{websiteId}}",
+                "content",
+                "{{contentTypeSlug}}",
+                "{{wpPostId}}",
+                "ingest"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Content Snapshots (Workflow)",
+      "item": [
+        {
+          "name": "List Workflow Snapshots",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const res = pm.response.json();",
+                  "    const items = res.data?.data || res.data || [];",
+                  "    if (items.length > 0 && !pm.collectionVariables.get('snapshotId')) {",
+                  "        pm.collectionVariables.set('snapshotId', items[0].id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/articles/snapshots?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "articles",
+                "snapshots"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Filter Snapshots by Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/articles/snapshots?workflowStatus=IMPORTED&page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "articles",
+                "snapshots"
+              ],
+              "query": [
+                {
+                  "key": "workflowStatus",
+                  "value": "IMPORTED"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Snapshot Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/articles/snapshots/{{snapshotId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "articles",
+                "snapshots",
+                "{{snapshotId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Remove Snapshot from Workflow",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/articles/snapshots/{{snapshotId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "articles",
+                "snapshots",
+                "{{snapshotId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Articles Manager (Process & Publish)",
+      "item": [
+        {
+          "name": "1. Process & Structure Raw Document (AI + Envato Images)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    const res = pm.response.json();",
+                  "    const data = res.data || res;",
+                  "    if (data.id) {",
+                  "        pm.collectionVariables.set('articleId', data.id);",
+                  "        console.log('Processed article! Saved articleId: ' + data.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contentTypeSlug\": \"{{contentTypeSlug}}\",\n  \"rawDocument\": \"ARTICLE 1\\nIs Liqui Moly Engine Oil Worth the Price? An Honest Buyer's Guide\\nTarget search term: is Liqui Moly good\\nMeta description: Liqui Moly costs more than most oils on the shelf. This guide explains what you pay for, which vehicles benefit, and when a cheaper oil is good enough.\\n\\nLiqui Moly sits at the higher end of the price list in almost every spare parts shop in Sri Lanka. Drivers who have used it tend to stay with it, while first-time buyers often ask the same thing at the counter: is Liqui Moly good enough to justify the extra money? The honest answer is that it depends on your engine, your driving and how long you plan to keep the vehicle. This guide walks through each of those points.\\n\\nWho makes Liqui Moly?\\nLiqui Moly is a German lubricant company that started in Ulm in 1957. Its first product was an oil additive based on molybdenum disulphide (MoS2), a solid lubricant that clings to metal surfaces. The name comes from that ingredient. Today the company produces motor oils, additives, car care products and workshop chemicals, and it blends and fills its oils in Germany. For a buyer, that means one consistent source and one quality system behind every can.\\n\\nWhat you are paying for\\nThree things separate a premium oil from a budget oil.\\n• Base oil quality. Liqui Moly's main passenger car oils use synthetic technology base stocks, which resist heat and oxidation better than mineral oil.\\n• Additive package. Detergents keep pistons clean, anti-wear agents protect cams and bearings, and viscosity improvers keep the oil stable from cold start to full temperature.\\n• Approvals. Many Liqui Moly oils carry API and ACEA ratings plus named approvals from car makers. An approval means the oil passed that manufacturer's own engine tests.\\n\\nWhy it matters in Sri Lankan driving\\nOur conditions are harder on oil than most owner's manuals assume. Colombo traffic means long periods of idling with little airflow. Short school and office runs never let the engine reach a steady temperature. Hill-country climbs load the engine heavily at low speed, and ambient temperatures stay above 27 degrees for much of the year. All of this is classed as severe service. An oil that holds its viscosity and keeps deposits in suspension has a real advantage in these conditions.\\n\\nWhich Liqui Moly oil suits which vehicle?\\nSemini Motors stocks five Liqui Moly motor oils, and each has a clear purpose.\\n• Special Tec AA 0W-20: for modern Japanese petrol and hybrid engines that specify 0W-20, such as the Toyota Aqua, Prius and newer Honda models.\\n• Special Tec AA 5W-30: for Japanese and American petrol engines that specify 5W-30.\\n• Special Tec AA 10W-30: for slightly older Japanese petrol engines designed around 10W-30.\\n• Leichtlauf High Tech 5W-40: for European cars and for petrol or diesel engines that call for 5W-40.\\n• MoS2 Leichtlauf 10W-40: a semi-synthetic oil with MoS2, suited to high-mileage engines.\\n\\nWhen Liqui Moly is worth it\\nThe extra cost makes sense in these cases:\\n• Your car is a hybrid or a turbocharged model with tight tolerances.\\n• You own a European vehicle that requires a specific manufacturer approval.\\n• You plan to keep the vehicle for many years and want to delay an engine overhaul.\\n• You drive mostly in heavy traffic or on short trips.\\n\\nThe verdict\\nLiqui Moly is a good oil, and for hybrids, European cars and vehicles kept for the long term it is worth the price. For a simple engine with a short ownership plan, the correct grade matters more than the label. Visit seminimotors.com or call to check stock and current prices.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/websites/{{websiteId}}/articles/process",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "websites",
+                "{{websiteId}}",
+                "articles",
+                "process"
+              ]
+            },
+            "description": "Sends a raw document (e.g. Liqui Moly guide). The AI Engine formats clean HTML, SEO keywords, and meta description, and the Media Discovery service attaches Envato image preview cards."
+          }
+        },
+        {
+          "name": "2. List Website Articles (Drafts & Published)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/websites/{{websiteId}}/articles?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "websites",
+                "{{websiteId}}",
+                "articles"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Lists all processed articles for this website."
+          }
+        },
+        {
+          "name": "3. Get Article Details & Image Previews",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/websites/{{websiteId}}/articles/{{articleId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "websites",
+                "{{websiteId}}",
+                "articles",
+                "{{articleId}}"
+              ]
+            },
+            "description": "Fetches full formatted article preview with matched Envato stock images."
+          }
+        },
+        {
+          "name": "4. Edit Article Draft",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Is Liqui Moly Engine Oil Worth the Price? Full 2026 Buyer's Guide\",\n  \"focusKeyword\": \"is liqui moly good\",\n  \"metaDescription\": \"An honest breakdown of whether Liqui Moly motor oil is worth the premium price in tropical driving conditions.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/websites/{{websiteId}}/articles/{{articleId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "websites",
+                "{{websiteId}}",
+                "articles",
+                "{{articleId}}"
+              ]
+            },
+            "description": "Allows manual fine-tuning of title, SEO meta, or content before publishing."
+          }
+        },
+        {
+          "name": "5. Publish Article to WordPress (1-Click)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"publish\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/websites/{{websiteId}}/articles/{{articleId}}/publish",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "websites",
+                "{{websiteId}}",
+                "articles",
+                "{{articleId}}",
+                "publish"
+              ]
+            },
+            "description": "Uploads the selected featured image to WordPress Media Library, creates the new live post via REST API, and returns the live post URL."
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Users & Profile",
+      "item": [
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Super Admin User\",\n  \"profileImage\": \"https://example.com/avatar.jpg\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/profile-update",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "profile-update"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Profile",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/profile-delete",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "profile-delete"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Notifications",
+      "item": [
+        {
+          "name": "Get Notifications",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const res = pm.response.json();",
+                  "    const list = res.data?.data || res.data || [];",
+                  "    if (list.length > 0) {",
+                  "        pm.collectionVariables.set('notificationId', list[0].id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Unread Count",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/unread-count",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications",
+                "unread-count"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mark Notification as Read",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/{{notificationId}}/read",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications",
+                "{{notificationId}}",
+                "read"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mark All as Read",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/mark-all-read",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications",
+                "mark-all-read"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Notification",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/{{notificationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications",
+                "{{notificationId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete All Notifications",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
 }

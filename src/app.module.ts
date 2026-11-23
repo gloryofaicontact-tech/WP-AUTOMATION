@@ -30,6 +30,7 @@ import { WebsitesModule } from './modules/websites/websites.module';
 import { ArticlesModule } from './modules/Articles/articles.module';
 import { AiEngineModule } from './modules/ai-engine/ai-engine.module';
 import { MediaDiscoveryModule } from './modules/media-discovery/media-discovery.module';
+import { ArticlesManagerModule } from './modules/articles-manager/articles-manager.module';
 import { CacheModule } from './infrastructure/cache/cache.module';
 import { getThrottlerModuleOptions } from './config/throttle-module.config';
 
@@ -83,6 +84,7 @@ import { getThrottlerModuleOptions } from './config/throttle-module.config';
     ArticlesModule,
     AiEngineModule,
     MediaDiscoveryModule,
+    ArticlesManagerModule,
   ],
 
   providers: [
