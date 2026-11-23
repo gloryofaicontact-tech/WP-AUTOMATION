@@ -1,0 +1,70 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { GoogleGenAI } from '@google/genai';
+import { AiProvider } from '../interfaces/ai-provider.interface';
+import { ParsedArticleResult, ArticleParsingContext } from '../interfaces/parsed-article.interface';
+import { PromptBuilder } from '../utils/prompt-builder';
+
+@Injectable()
+export class GeminiProvider implements AiProvider {
+  readonly providerName = 'gemini';
+  private readonly logger = new Logger(GeminiProvider.name);
+  private client: GoogleGenAI | null = null;
+  private readonly model: string;
+
+  constructor(private readonly config: ConfigService) {
+    const apiKey = this.config.get<string>('GEMINI_API_KEY')?.trim();
+    this.model = this.config.get<string>('GEMINI_MODEL', 'gemini-2.5-flash');
+
+    if (apiKey) {
+      this.client = new GoogleGenAI({ apiKey });
+      this.logger.log(`GeminiProvider initialized with model: ${this.model}`);
+    } else {
+      this.logger.debug('GEMINI_API_KEY not set. GeminiProvider will be unavailable.');
+    }
+  }
+
+  isAvailable(): boolean {
+    return this.client !== null;
+  }
+
+  async parseAndStructureDocument(
+    rawDocument: string,
+    context: ArticleParsingContext,
+  ): Promise<ParsedArticleResult> {
+    if (!this.client) {
+      throw new Error('GeminiProvider is unavailable: GEMINI_API_KEY is not configured.');
+    }
+
+    const systemPrompt = PromptBuilder.buildSystemPrompt(context);
+    const userPrompt = PromptBuilder.buildUserPrompt(rawDocument);
+
+    this.logger.debug(`Sending document to Gemini (${this.model})...`);
+
+    const response = await this.client.models.generateContent({
+      model: this.model,
+      contents: `${systemPrompt}\n\n${userPrompt}`,
+      config: {
+        responseMimeType: 'application/json',
+      },
+    });
+
+    const responseText = response.text || '';
+    return this.parseJsonResponse(responseText);
+  }
+
+  private parseJsonResponse(text: string): ParsedArticleResult {
+    const cleaned = text
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim();
+
+    try {
+      return JSON.parse(cleaned);
+    } catch (err: any) {
+      this.logger.error(`Failed to parse Gemini JSON response: ${err.message}`);
+      throw new Error(`Gemini returned non-JSON output: ${cleaned.substring(0, 200)}...`);
+    }
+  }
+}

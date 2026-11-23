@@ -28,6 +28,7 @@ import { MailModule } from './modules/mail/mail.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { WebsitesModule } from './modules/websites/websites.module';
 import { ArticlesModule } from './modules/Articles/articles.module';
+import { AiEngineModule } from './modules/ai-engine/ai-engine.module';
 import { CacheModule } from './infrastructure/cache/cache.module';
 import { getThrottlerModuleOptions } from './config/throttle-module.config';
 
@@ -79,6 +80,7 @@ import { getThrottlerModuleOptions } from './config/throttle-module.config';
     NotificationsModule,
     WebsitesModule,
     ArticlesModule,
+    AiEngineModule,
   ],
 
   providers: [
