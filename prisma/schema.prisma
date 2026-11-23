@@ -212,21 +212,25 @@ model ContentSnapshot {
   websiteId        String         @map("website_id") @db.Uuid
   contentTypeId    String         @map("content_type_id") @db.Uuid
 
-  wpPostId         Int            @map("wp_post_id")
-  slug             String         @db.VarChar(255)
+  wpPostId         Int?           @map("wp_post_id")
+  slug             String?        @db.VarChar(255)
   title            String         @db.Text
   rawContent       String?        @map("raw_content") @db.Text
   rawExcerpt       String?        @map("raw_excerpt") @db.Text
 
-  wpStatus         String         @default("publish") @map("wp_status") @db.VarChar(50)
-  wpUrl            String         @map("wp_url") @db.VarChar(512)
+  rawDocument      String?        @map("raw_document") @db.Text
+  focusKeyword     String?        @map("focus_keyword") @db.VarChar(255)
+  metaDescription  String?        @map("meta_description") @db.Text
+
+  wpStatus         String         @default("draft") @map("wp_status") @db.VarChar(50)
+  wpUrl            String?        @map("wp_url") @db.VarChar(512)
   wpPublishedAt    DateTime?      @map("wp_published_at")
   wpModifiedAt     DateTime?      @map("wp_modified_at")
 
   featuredMediaId  Int?           @map("featured_media_id")
   featuredMediaUrl String?        @map("featured_media_url") @db.VarChar(512)
 
-  originalData     Json           @map("original_data")
+  originalData     Json?          @map("original_data")
   taxonomiesData   Json?          @map("taxonomies_data")
   customFields     Json?          @map("custom_fields")
 
