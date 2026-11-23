@@ -146,10 +146,6 @@ export const envValidationSchema = Joi.object({
   LOG_MAX_FILES: Joi.string().default('14d'),
   LOG_COMPRESS: Joi.boolean().default(true),
 
-  SENTRY_DSN: Joi.string().uri().optional().allow(''),
-  SENTRY_ENVIRONMENT: Joi.string().optional(),
-  SENTRY_TRACES_SAMPLE_RATE: Joi.number().min(0).max(1).default(0.1),
-
   // ============================================
   // EMAIL / SMTP
   // ============================================
@@ -177,55 +173,12 @@ export const envValidationSchema = Joi.object({
   WS_REDIS_KEY_PREFIX: Joi.string().default('ws:'),
 
   // ============================================
-  // SMS
+  // MONITORING & HEALTH
   // ============================================
-  SMS_PROVIDER: Joi.string().valid('twilio', 'aws-sns').optional(),
-  SMS_ACCOUNT_SID: Joi.string().optional(),
-  SMS_AUTH_TOKEN: Joi.string().optional(),
-  SMS_FROM_NUMBER: Joi.string().optional(),
-
-  OTP_LENGTH: Joi.number().min(4).max(8).default(6),
-  OTP_EXPIRY: Joi.number().default(300000),
-  OTP_MAX_ATTEMPTS: Joi.number().default(3),
-  OTP_RESEND_DELAY: Joi.number().default(60000),
-
-  // ============================================
-  // AWS
-  // ============================================
-  AWS_REGION: Joi.string().optional(),
-  AWS_ACCESS_KEY_ID: Joi.string().optional(),
-  AWS_SECRET_ACCESS_KEY: Joi.string().optional(),
-
-  AWS_S3_BUCKET: Joi.string().optional(),
-  AWS_S3_REGION: Joi.string().optional(),
-  AWS_S3_ACCELERATE: Joi.boolean().default(true),
-  AWS_CLOUDFRONT_URL: Joi.string().uri().optional(),
-
-  // ============================================
-  // MONITORING
-  // ============================================
-  APM_ENABLED: Joi.boolean().default(true),
-  APM_SERVER_URL: Joi.string().uri().optional(),
-  APM_SERVICE_NAME: Joi.string().default('classifieds-api'),
-  APM_ENVIRONMENT: Joi.string().optional(),
-
-  METRICS_ENABLED: Joi.boolean().default(true),
-  METRICS_PORT: Joi.number().port().default(9090),
-  METRICS_PATH: Joi.string().default('/metrics'),
-
   HEALTH_CHECK_ENABLED: Joi.boolean().default(true),
   HEALTH_CHECK_PATH: Joi.string().default('/health'),
   READINESS_CHECK_PATH: Joi.string().default('/health/ready'),
   LIVENESS_CHECK_PATH: Joi.string().default('/health/live'),
-
-  // ============================================
-  // FEATURE FLAGS
-  // ============================================
-  FEATURE_EMAIL_VERIFICATION: Joi.boolean().default(true),
-  FEATURE_PHONE_VERIFICATION: Joi.boolean().default(true),
-  FEATURE_TWO_FACTOR_AUTH: Joi.boolean().default(false),
-  FEATURE_SOCIAL_LOGIN: Joi.boolean().default(false),
-  FEATURE_AUDIT_LOGGING: Joi.boolean().default(true),
 
   // ============================================
   // PERFORMANCE
@@ -254,6 +207,5 @@ export const envValidationSchema = Joi.object({
   SEED_DATABASE: Joi.boolean().default(false),
   SEED_ADMIN_EMAIL: Joi.string().email().optional(),
   SEED_ADMIN_PASSWORD: Joi.string().optional(),
-  SEED_ADMIN_FIRST_NAME: Joi.string().optional(),
-  SEED_ADMIN_LAST_NAME: Joi.string().optional(),
+  SEED_ADMIN_FULL_NAME: Joi.string().optional(),
 });
