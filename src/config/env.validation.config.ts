@@ -54,14 +54,15 @@ export const envValidationSchema = Joi.object({
   DB_POOL_IDLE_TIMEOUT: Joi.number().default(30000),
 
   // ============================================
-  // JWT SECURITY
+  // JWT & APP SECURITY
   // ============================================
+  ENCRYPTION_KEY: Joi.string().optional(),
   JWT_SECRET: Joi.string().min(32).required(),
   JWT_EXPIRATION: Joi.string().default('15m'),
   JWT_REFRESH_SECRET: Joi.string().min(32).required(),
   JWT_REFRESH_EXPIRATION: Joi.string().default('7d'),
-  JWT_ISSUER: Joi.string().default('classifieds-api'),
-  JWT_AUDIENCE: Joi.string().default('classifieds-client'),
+  JWT_ISSUER: Joi.string().default('wp-automation-api'),
+  JWT_AUDIENCE: Joi.string().default('wp-automation-client'),
 
   // ============================================
   // SECURITY

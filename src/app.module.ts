@@ -26,6 +26,7 @@ import { ClassSerializerInterceptor } from '@nestjs/common';
 import mailConfig from './config/mail.config';
 import { MailModule } from './modules/mail/mail.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { WebsitesModule } from './modules/websites/websites.module';
 import { CacheModule } from './infrastructure/cache/cache.module';
 import { getThrottlerModuleOptions } from './config/throttle-module.config';
 
@@ -75,6 +76,7 @@ import { getThrottlerModuleOptions } from './config/throttle-module.config';
     UsersModule,
     MailModule,
     NotificationsModule,
+    WebsitesModule,
   ],
 
   providers: [

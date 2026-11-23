@@ -34,6 +34,7 @@ model User {
   tokens          AuthToken[]
   auditLogs       AuditLog[]
   notifications   Notification[]
+  websites        Website[]
 
   @@index([role])
   @@index([status])
@@ -137,8 +138,42 @@ model Notification {
 }
 
 // ============================================
+// WEBSITES
+// ============================================
+
+model Website {
+  id                  String        @id @default(uuid()) @db.Uuid
+  name                String        @db.VarChar(255)
+  url                 String        @db.VarChar(512)
+  restApiUrl          String?       @map("rest_api_url") @db.VarChar(512)
+  username            String        @db.VarChar(100)
+  applicationPassword String        @map("application_password") @db.Text
+  status              WebsiteStatus @default(DISCONNECTED)
+  lastError           String?       @map("last_error") @db.Text
+  lastSyncAt          DateTime?     @map("last_sync_at")
+  isActive            Boolean       @default(true) @map("is_active")
+
+  createdById         String?       @map("created_by_id") @db.Uuid
+  createdBy           User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([isActive])
+  @@index([createdById])
+  @@map("websites")
+}
+
+// ============================================
 // ENUMS
 // ============================================
+
+enum WebsiteStatus {
+  CONNECTED
+  DISCONNECTED
+  ERROR
+}
 
 enum UserRole {
   SUPER_ADMIN
