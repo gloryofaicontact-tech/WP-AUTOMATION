@@ -91,7 +91,7 @@ export class AuthService {
           email: dto.email,
           passwordHash,
           fullName: dto.fullName,
-          role: UserRole.EDITOR,
+          role: UserRole.SUPER_ADMIN,
           status: UserStatus.ACTIVE,
         },
       });
