@@ -1,6 +1,6 @@
 export const sendArticleTool = {
     name: 'send_article_to_backend',
-    description: 'Send a raw article (plain text, markdown, or pasted content) to the WP-Automation backend. The backend uses AI to structure it into SEO-ready HTML, discovers Envato images, and saves a draft. Optionally auto-publishes to WordPress immediately.',
+    description: 'Send a raw article (plain text, markdown, or pasted content) to the WP-Automation backend. The backend uses AI to structure it into SEO-ready HTML, discovers Envato images, and saves a draft. Returns article ID, SEO fields, and Envato image details/links.',
     inputSchema: {
         type: 'object',
         properties: {
@@ -10,7 +10,7 @@ export const sendArticleTool = {
             },
             contentTypeSlug: {
                 type: 'string',
-                description: 'The post type slug from get_content_types (e.g. "post", "tour-package")',
+                description: 'The post type slug from get_content_types (e.g. "post", "tour-package", "destination")',
             },
             rawContent: {
                 type: 'string',
@@ -18,7 +18,12 @@ export const sendArticleTool = {
             },
             autoPublish: {
                 type: 'boolean',
-                description: 'If true, the article is immediately published to WordPress after processing. Default: false (saves as draft).',
+                description: 'If true, attempts to publish to WordPress immediately. Note: publishing is blocked if unreplaced Envato preview images remain unless allowPreviewImages is true. Default: false (saves as draft).',
+                default: false,
+            },
+            allowPreviewImages: {
+                type: 'boolean',
+                description: 'Only used when autoPublish is true. Set true to allow publishing even with Envato preview URLs.',
                 default: false,
             },
         },
@@ -31,21 +36,51 @@ export async function sendArticle(client, args) {
         contentTypeSlug: args.contentTypeSlug,
         rawDocument: args.rawContent,
     });
-    let result = `## ✅ Article Processed Successfully\n\n`;
+    let result = `## ✅ Article Processed & Saved as Draft\n\n`;
     result += `- **Title:** ${article.title}\n`;
+    result += `- **Slug:** \`${article.slug ?? '—'}\`\n`;
     result += `- **Article ID:** \`${article.id}\`\n`;
-    result += `- **Status:** ${article.workflowStatus}\n`;
+    result += `- **Status:** ${article.workflowStatus} (WP: ${article.wpStatus ?? 'draft'})\n`;
+    if (article.focusKeyword)
+        result += `- **Focus Keyword:** ${article.focusKeyword}\n`;
+    if (article.metaDescription)
+        result += `- **Meta Description:** ${article.metaDescription}\n`;
     result += `- **Created:** ${new Date(article.createdAt).toLocaleString()}\n`;
-    // Auto-publish if requested
+    if (article.images && article.images.length > 0) {
+        result += `\n### 🖼️ Discovered Media Placeholders (${article.images.length})\n`;
+        for (const img of article.images) {
+            result += `- **${img.position ?? img.placeholderId}** (\`${img.recommendedSearch ?? ''}\`)\n`;
+            if (img.selectedAsset?.previewUrl) {
+                result += `  - Preview: ${img.selectedAsset.previewUrl}\n`;
+            }
+            if (img.elementsSearchUrl) {
+                result += `  - Envato Elements: ${img.elementsSearchUrl}\n`;
+            }
+            if (img.isPreviewOnly) {
+                result += `  - ⚠️ *Preview only — upload licensed image in dashboard before publishing live.*\n`;
+            }
+        }
+    }
     if (args.autoPublish) {
         console.error(`[MCP] Auto-publishing article ${article.id}...`);
-        const pub = await client.post(`/websites/${args.websiteId}/articles/${article.id}/publish`, { status: 'publish' });
-        result += `\n---\n## 🚀 Published to WordPress\n\n`;
-        result += `- **WordPress Post ID:** ${pub.wpPostId ?? 'N/A'}\n`;
-        result += `- **Status:** ${pub.workflowStatus}\n`;
+        try {
+            const pub = await client.post(`/websites/${args.websiteId}/articles/${article.id}/publish`, {
+                status: 'publish',
+                allowPreviewImages: Boolean(args.allowPreviewImages),
+            });
+            result += `\n---\n## 🚀 Published to WordPress\n\n`;
+            result += `- **WordPress Post ID:** ${pub.wpPostId ?? 'N/A'}\n`;
+            if (pub.wpUrl)
+                result += `- **Live URL:** ${pub.wpUrl}\n`;
+            result += `- **Status:** ${pub.workflowStatus}\n`;
+        }
+        catch (pubErr) {
+            const msg = pubErr instanceof Error ? pubErr.message : String(pubErr);
+            result += `\n---\n## ⚠️ Draft Saved, Auto-Publish Blocked\n\n${msg}\n`;
+        }
     }
     else {
-        result += `\n> Article saved as draft. Use \`publish_article\` with article ID \`${article.id}\` to publish it.`;
+        result += `\n> Use \`get_article\` to inspect HTML/fields, \`update_article\` to edit, or \`publish_article\` to publish.`;
     }
     return result;
 }

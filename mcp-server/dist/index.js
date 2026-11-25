@@ -9,9 +9,12 @@ import { CallToolRequestSchema, ListToolsRequestSchema, } from '@modelcontextpro
 import { BackendClient } from './client.js';
 import { listWebsitesTool, listWebsites } from './tools/list-websites.js';
 import { getContentTypesTool, getContentTypes } from './tools/get-content-types.js';
+import { listArticlesTool, listArticles } from './tools/list-articles.js';
+import { getArticleTool, getArticle } from './tools/get-article.js';
+import { updateArticleTool, updateArticle } from './tools/update-article.js';
 import { sendArticleTool, sendArticle } from './tools/send-article.js';
 import { publishArticleTool, publishArticle } from './tools/publish-article.js';
-import { listArticlesTool, listArticles } from './tools/list-articles.js';
+import { listWpContentTool, listWpContent, getWpContentItemTool, getWpContentItem, } from './tools/wp-content.js';
 // ── Config from environment (set in claude_desktop_config.json) ──────────────
 const BACKEND_URL = process.env.WP_BACKEND_URL ?? 'http://localhost:3000/api/v1';
 const BACKEND_TOKEN = process.env.WP_BACKEND_TOKEN ?? '';
@@ -25,20 +28,24 @@ const client = new BackendClient({ baseUrl: BACKEND_URL, token: BACKEND_TOKEN })
 // ── MCP server ───────────────────────────────────────────────────────────────
 const server = new Server({
     name: 'wp-automation-mcp',
-    version: '1.0.0',
+    version: '1.1.0',
 }, {
     capabilities: {
         tools: {},
     },
 });
-// List all tools
+// List all tools (8 tools)
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [
         listWebsitesTool,
         getContentTypesTool,
         listArticlesTool,
+        getArticleTool,
+        updateArticleTool,
         sendArticleTool,
         publishArticleTool,
+        listWpContentTool,
+        getWpContentItemTool,
     ],
 }));
 // Execute tool
@@ -56,11 +63,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             case 'list_articles':
                 text = await listArticles(client, args);
                 break;
+            case 'get_article':
+                text = await getArticle(client, args);
+                break;
+            case 'update_article':
+                text = await updateArticle(client, args);
+                break;
             case 'send_article_to_backend':
                 text = await sendArticle(client, args);
                 break;
             case 'publish_article':
                 text = await publishArticle(client, args);
+                break;
+            case 'list_wp_content':
+                text = await listWpContent(client, args);
+                break;
+            case 'get_wp_content_item':
+                text = await getWpContentItem(client, args);
                 break;
             default:
                 throw new Error(`Unknown tool: ${name}`);

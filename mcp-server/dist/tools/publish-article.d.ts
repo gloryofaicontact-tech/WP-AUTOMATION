@@ -5,4 +5,5 @@ export declare function publishArticle(client: BackendClient, args: {
     websiteId: string;
     articleId: string;
     action: 'publish' | 'unpublish' | 'delete' | 'delete_permanent';
+    allowPreviewImages?: boolean;
 }): Promise<string>;

@@ -3,4 +3,5 @@ import { BackendClient } from '../client.js';
 export declare const getContentTypesTool: Tool;
 export declare function getContentTypes(client: BackendClient, args: {
     websiteId: string;
+    slug?: string;
 }): Promise<string>;

@@ -14,9 +14,17 @@ import {
 import { BackendClient } from './client.js';
 import { listWebsitesTool, listWebsites } from './tools/list-websites.js';
 import { getContentTypesTool, getContentTypes } from './tools/get-content-types.js';
+import { listArticlesTool, listArticles } from './tools/list-articles.js';
+import { getArticleTool, getArticle } from './tools/get-article.js';
+import { updateArticleTool, updateArticle } from './tools/update-article.js';
 import { sendArticleTool, sendArticle } from './tools/send-article.js';
 import { publishArticleTool, publishArticle } from './tools/publish-article.js';
-import { listArticlesTool, listArticles } from './tools/list-articles.js';
+import {
+  listWpContentTool,
+  listWpContent,
+  getWpContentItemTool,
+  getWpContentItem,
+} from './tools/wp-content.js';
 
 // ── Config from environment (set in claude_desktop_config.json) ──────────────
 const BACKEND_URL = process.env.WP_BACKEND_URL ?? 'http://localhost:3000/api/v1';
@@ -25,8 +33,8 @@ const BACKEND_TOKEN = process.env.WP_BACKEND_TOKEN ?? '';
 if (!BACKEND_TOKEN) {
   console.error(
     '[WP-MCP] ⚠️  WP_BACKEND_TOKEN is not set. ' +
-    'Set it in your MCP client config (env block). ' +
-    'Get a token by calling POST /api/v1/auth/login on your backend.',
+      'Set it in your MCP client config (env block). ' +
+      'Get a token by calling POST /api/v1/auth/login on your backend.',
   );
 }
 
@@ -37,7 +45,7 @@ const client = new BackendClient({ baseUrl: BACKEND_URL, token: BACKEND_TOKEN })
 const server = new Server(
   {
     name: 'wp-automation-mcp',
-    version: '1.0.0',
+    version: '1.1.0',
   },
   {
     capabilities: {
@@ -46,14 +54,18 @@ const server = new Server(
   },
 );
 
-// List all tools
+// List all tools (8 tools)
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     listWebsitesTool,
     getContentTypesTool,
     listArticlesTool,
+    getArticleTool,
+    updateArticleTool,
     sendArticleTool,
     publishArticleTool,
+    listWpContentTool,
+    getWpContentItemTool,
   ],
 }));
 
@@ -70,13 +82,41 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
 
       case 'get_content_types':
-        text = await getContentTypes(client, args as { websiteId: string });
+        text = await getContentTypes(
+          client,
+          args as { websiteId: string; slug?: string },
+        );
         break;
 
       case 'list_articles':
         text = await listArticles(
           client,
-          args as { websiteId: string; page?: number; limit?: number },
+          args as { websiteId: string; status?: string; page?: number; limit?: number },
+        );
+        break;
+
+      case 'get_article':
+        text = await getArticle(
+          client,
+          args as { websiteId: string; articleId: string },
+        );
+        break;
+
+      case 'update_article':
+        text = await updateArticle(
+          client,
+          args as {
+            websiteId: string;
+            articleId: string;
+            title?: string;
+            slug?: string;
+            focusKeyword?: string;
+            metaDescription?: string;
+            contentHtml?: string;
+            categorySlugs?: string[];
+            tagSlugs?: string[];
+            customFields?: Record<string, unknown>;
+          },
         );
         break;
 
@@ -88,6 +128,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             contentTypeSlug: string;
             rawContent: string;
             autoPublish?: boolean;
+            allowPreviewImages?: boolean;
           },
         );
         break;
@@ -99,6 +140,32 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             websiteId: string;
             articleId: string;
             action: 'publish' | 'unpublish' | 'delete' | 'delete_permanent';
+            allowPreviewImages?: boolean;
+          },
+        );
+        break;
+
+      case 'list_wp_content':
+        text = await listWpContent(
+          client,
+          args as {
+            websiteId: string;
+            contentTypeSlug: string;
+            search?: string;
+            status?: string;
+            page?: number;
+            limit?: number;
+          },
+        );
+        break;
+
+      case 'get_wp_content_item':
+        text = await getWpContentItem(
+          client,
+          args as {
+            websiteId: string;
+            contentTypeSlug: string;
+            wpPostId: number;
           },
         );
         break;

@@ -6,4 +6,5 @@ export declare function sendArticle(client: BackendClient, args: {
     contentTypeSlug: string;
     rawContent: string;
     autoPublish?: boolean;
+    allowPreviewImages?: boolean;
 }): Promise<string>;
