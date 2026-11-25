@@ -72,7 +72,12 @@ async function bootstrap() {
   app.setGlobalPrefix(prefix);
 
   const port = config.get<number>('app.port') || 3000;
-  await app.listen(port);
+  const server = await app.listen(port);
+
+  // Extend HTTP timeout to 3 minutes for long-running AI pipelines and media discovery
+  if (server && typeof (server as any).setTimeout === 'function') {
+    (server as any).setTimeout(180000);
+  }
 
   logger.log(`Application running in ${config.get('app.nodeEnv')} mode on port ${port}`);
   logger.log(`REST API: http://localhost:${port}/${prefix}`);

@@ -1195,7 +1195,84 @@
                 "publish"
               ]
             },
-            "description": "Uploads the selected featured image to WordPress Media Library, creates the new live post via REST API, and returns the live post URL."
+            "description": "Uploads the selected featured image to WordPress Media Library, creates or updates the live post via REST API, and returns the live post URL."
+          }
+        },
+        {
+          "name": "6. Unpublish Article (Revert to WordPress Draft)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"draft\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/websites/{{websiteId}}/articles/{{articleId}}/publish",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "websites",
+                "{{websiteId}}",
+                "articles",
+                "{{articleId}}",
+                "publish"
+              ]
+            },
+            "description": "Reverts an already published WordPress post back to an unpublished 'draft' status without deleting it."
+          }
+        },
+        {
+          "name": "7. Delete Article (Local Draft & Trash on WordPress)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/websites/{{websiteId}}/articles/{{articleId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "websites",
+                "{{websiteId}}",
+                "articles",
+                "{{articleId}}"
+              ]
+            },
+            "description": "Deletes the draft from the local database and moves the post to Trash on WordPress if it was published."
+          }
+        },
+        {
+          "name": "8. Permanently Delete Article (Bypass Trash)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/websites/{{websiteId}}/articles/{{articleId}}?force=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "websites",
+                "{{websiteId}}",
+                "articles",
+                "{{articleId}}"
+              ],
+              "query": [
+                {
+                  "key": "force",
+                  "value": "true",
+                  "description": "Permanently delete from WordPress instead of trashing"
+                }
+              ]
+            },
+            "description": "Permanently deletes the article from the platform and completely deletes the post on WordPress."
           }
         }
       ]

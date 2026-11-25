@@ -268,7 +268,10 @@ export class ArticlesManagerService {
   /**
    * Publishes an approved article directly to WordPress via the REST API.
    */
-  async publishToWordPress(id: string, publishStatus: 'publish' | 'draft' = 'publish') {
+  async publishToWordPress(
+    id: string,
+    publishStatus: 'publish' | 'draft' | 'pending' = 'publish',
+  ) {
     const article = await this.prisma.contentSnapshot.findUnique({
       where: { id },
       include: {
@@ -303,7 +306,8 @@ export class ArticlesManagerService {
       }
     }
 
-    // Step 2: Publish Post to WordPress REST API
+    // Step 2: Publish or Update Post to WordPress REST API
+    const existingWpPostId = article.wpPostId || undefined;
     const result = await this.wpPublisherService.publishPost(
       credentials.url,
       authHeader,
@@ -314,25 +318,31 @@ export class ArticlesManagerService {
         content: article.rawContent || '',
         excerpt: article.metaDescription || '',
         status: publishStatus,
-        featured_media: featuredMediaId,
+        featured_media: featuredMediaId || article.featuredMediaId || undefined,
         acf: (article.customFields as any) || undefined,
       },
+      existingWpPostId,
     );
 
     // Step 3: Update local snapshot with live WordPress details
+    const workflowStatus =
+      publishStatus === 'publish' ? WorkflowStatus.PUBLISHED : WorkflowStatus.IMPORTED;
+
     const updated = await this.prisma.contentSnapshot.update({
       where: { id },
       data: {
         wpPostId: result.wpPostId,
         wpUrl: result.wpUrl,
         wpStatus: result.wpStatus,
-        workflowStatus: WorkflowStatus.PUBLISHED,
-        wpPublishedAt: new Date(),
-        featuredMediaId: featuredMediaId || null,
+        workflowStatus,
+        wpPublishedAt: publishStatus === 'publish' ? new Date() : article.wpPublishedAt,
+        featuredMediaId: featuredMediaId || article.featuredMediaId || null,
       },
     });
 
-    this.logger.log(`Article published to WordPress! ID: ${result.wpPostId}, Live URL: ${result.wpUrl}`);
+    this.logger.log(
+      `Article ${existingWpPostId ? 'updated' : 'published'} on WordPress! ID: ${result.wpPostId}, Status: ${result.wpStatus}, Live URL: ${result.wpUrl}`,
+    );
 
     return {
       id: updated.id,
@@ -342,6 +352,62 @@ export class ArticlesManagerService {
       workflowStatus: updated.workflowStatus,
       title: updated.title,
       publishedAt: updated.wpPublishedAt,
+    };
+  }
+
+  /**
+   * Deletes an article from the platform and optionally trashes/deletes it on WordPress.
+   */
+  async deleteArticle(id: string, force = false) {
+    const article = await this.prisma.contentSnapshot.findUnique({
+      where: { id },
+      include: {
+        contentType: true,
+        website: true,
+      },
+    });
+
+    if (!article) {
+      throw new NotFoundException(`Article with ID ${id} not found`);
+    }
+
+    let wpDeleted = false;
+    // If post was pushed to WordPress, trash or permanently delete it on WordPress
+    if (article.wpPostId) {
+      try {
+        const credentials = await this.websitesService.getDecryptedCredentials(article.websiteId);
+        const cleanPassword = credentials.applicationPassword.replace(/\s+/g, '');
+        const authHeader = `Basic ${Buffer.from(`${credentials.username}:${cleanPassword}`).toString('base64')}`;
+
+        await this.wpPublisherService.deletePost(
+          credentials.url,
+          authHeader,
+          article.contentType.restNamespace,
+          article.contentType.restBase,
+          article.wpPostId,
+          force,
+        );
+        wpDeleted = true;
+      } catch (err: any) {
+        this.logger.warn(
+          `Failed to delete WordPress post #${article.wpPostId}: ${err.message}. Proceeding with local removal.`,
+        );
+      }
+    }
+
+    // Delete local draft from PostgreSQL
+    await this.prisma.contentSnapshot.delete({
+      where: { id },
+    });
+
+    return {
+      success: true,
+      id,
+      wpPostId: article.wpPostId,
+      wpDeleted,
+      message: article.wpPostId
+        ? `Article deleted from local platform and ${force ? 'permanently deleted' : 'moved to trash'} on WordPress.`
+        : 'Draft article deleted successfully.',
     };
   }
 }

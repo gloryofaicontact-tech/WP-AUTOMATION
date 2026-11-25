@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Patch,
+  Delete,
   Param,
   Body,
   Query,
@@ -82,16 +83,34 @@ export class ArticlesManagerController {
   }
 
   /**
-   * Publishes the article directly to WordPress via the REST API.
+   * Publishes or updates the article directly on WordPress via the REST API.
+   * Passing { "status": "draft" } unpublishes/reverts an existing post to draft on WordPress.
+   * Passing { "status": "publish" } makes it live.
    */
   @Post(':id/publish')
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.EDITOR)
   @HttpCode(HttpStatus.OK)
-  @ResponseMessage('Article published to WordPress successfully')
+  @ResponseMessage('Article published or updated on WordPress successfully')
   async publishToWordPress(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body('status') status?: 'publish' | 'draft',
+    @Body('status') status?: 'publish' | 'draft' | 'pending',
   ) {
     return this.articlesService.publishToWordPress(id, status || 'publish');
+  }
+
+  /**
+   * Deletes an article from the platform and optionally trashes or permanently deletes it on WordPress.
+   * Query: ?force=true (permanently delete on WordPress) or false (move to WordPress Trash, default).
+   */
+  @Delete(':id')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.EDITOR)
+  @HttpCode(HttpStatus.OK)
+  @ResponseMessage('Article deleted successfully')
+  async deleteArticle(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('force') force?: string,
+  ) {
+    const isForce = force === 'true';
+    return this.articlesService.deleteArticle(id, isForce);
   }
 }

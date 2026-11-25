@@ -93,16 +93,23 @@ export class LoggingInterceptor implements NestInterceptor {
         const delay = Date.now() - now;
         const statusCode = res.statusCode;
         
-        // Categorize slow requests by severity
-        if (delay >= this.slowRequestCriticalThreshold) {
-          // Critical slow request - log as error for immediate attention
-          this.logger.error(
-            `[${requestId}] CRITICAL SLOW REQUEST: ${method} ${url} ${statusCode} - ${delay}ms (threshold: ${this.slowRequestCriticalThreshold}ms)`,
-          );
-        } else if (delay >= this.slowRequestWarningThreshold) {
-          // Warning-level slow request - log as warning
+        // Categorize slow requests by severity (giving higher thresholds for heavy AI & media workflows)
+        const isLongRunningRoute =
+          url.includes('/articles') ||
+          url.includes('/process') ||
+          url.includes('/publish') ||
+          url.includes('/discover');
+
+        const warningThreshold = isLongRunningRoute ? 30000 : this.slowRequestWarningThreshold;
+        const criticalThreshold = isLongRunningRoute ? 60000 : this.slowRequestCriticalThreshold;
+
+        if (delay >= criticalThreshold) {
           this.logger.warn(
-            `[${requestId}] SLOW REQUEST: ${method} ${url} ${statusCode} - ${delay}ms (threshold: ${this.slowRequestWarningThreshold}ms)`,
+            `[${requestId}] HEAVY OPERATION COMPLETED: ${method} ${url} ${statusCode} - ${delay}ms (threshold: ${criticalThreshold}ms)`,
+          );
+        } else if (delay >= warningThreshold) {
+          this.logger.warn(
+            `[${requestId}] SLOW REQUEST: ${method} ${url} ${statusCode} - ${delay}ms (threshold: ${warningThreshold}ms)`,
           );
         } else {
           // Normal request - log as info
