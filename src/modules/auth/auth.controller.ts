@@ -100,6 +100,12 @@ export class AuthController {
     return this.authService.refreshToken(dto, ipAddress, userAgent);
   }
 
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  async getMe(@CurrentUser() user: RequestUser) {
+    return this.authService.getProfile(user.id);
+  }
+
   @Get('details')
   @UseGuards(JwtAuthGuard)
   async getCurrentUser(@CurrentUser() user: RequestUser) {
