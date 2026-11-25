@@ -29,15 +29,30 @@ export class MediaDiscoveryService {
     const effectiveKeys = await this.aiSettingsService.getEffectiveKeys();
     const envatoToken = effectiveKeys.envatoToken || undefined;
 
-    this.logger.log(`Discovering media assets for ${placeholders.length} layout placeholders...`);
+    this.logger.log(
+      `[MediaDiscovery] 🚀 Processing ${placeholders.length} layout placeholders (Envato token configured: ${Boolean(envatoToken)})...`,
+    );
 
     const matchedPlaceholders = await Promise.all(
-      placeholders.map(async (placeholder) => {
-        let assets = await this.envatoProvider.searchPhotos(placeholder.recommendedSearch, 4, envatoToken);
+      placeholders.map(async (placeholder, idx) => {
+        this.logger.log(
+          `[MediaDiscovery] Placeholder #${idx + 1} (${placeholder.position}): Querying Envato for "${placeholder.recommendedSearch}" (Fallback: "${placeholder.fallbackSearch || 'none'}")...`,
+        );
 
-        if (!assets || assets.length === 0) {
-          this.logger.debug(
-            `Envato had no results for "${placeholder.recommendedSearch}". Falling back to stock provider...`,
+        let assets = await this.envatoProvider.searchPhotos(
+          placeholder.recommendedSearch,
+          4,
+          envatoToken,
+          placeholder.fallbackSearch,
+        );
+
+        if (assets && assets.length > 0) {
+          this.logger.log(
+            `[MediaDiscovery] ✅ Envato returned ${assets.length} photos for "${placeholder.recommendedSearch}". Primary: "${assets[0].title}" (${assets[0].previewUrl.slice(0, 60)}...)`,
+          );
+        } else {
+          this.logger.warn(
+            `[MediaDiscovery] ⚠️ Envato had 0 assets for "${placeholder.recommendedSearch}". Falling back to stock provider...`,
           );
           assets = await this.stockFallbackProvider.searchPhotos(placeholder.recommendedSearch, 4);
         }
@@ -49,6 +64,7 @@ export class MediaDiscoveryService {
           placeholderId: placeholder.placeholderId,
           position: placeholder.position,
           recommendedSearch: placeholder.recommendedSearch,
+          fallbackSearch: placeholder.fallbackSearch,
           altText: placeholder.altText,
           targetHeading: placeholder.targetHeading,
           selectedAsset,

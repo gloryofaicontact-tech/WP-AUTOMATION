@@ -26,13 +26,17 @@ export class WpPublisherService {
     altText?: string,
   ): Promise<WordPressMediaUploadResult | null> {
     try {
-      this.logger.debug(`Fetching image from external URL: ${imageUrl}`);
+      this.logger.log(`[MediaUpload] 📥 Downloading image bytes from: ${imageUrl}`);
       const imageResponse = await fetch(imageUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)',
+          Accept: 'image/*',
+        },
         signal: AbortSignal.timeout(15000),
       });
 
       if (!imageResponse.ok) {
-        this.logger.warn(`Failed to download image from ${imageUrl}: HTTP ${imageResponse.status}`);
+        this.logger.warn(`[MediaUpload] ❌ Failed to download image from ${imageUrl}: HTTP ${imageResponse.status} ${imageResponse.statusText}`);
         return null;
       }
 
@@ -41,7 +45,7 @@ export class WpPublisherService {
       const filename = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}.jpg`;
 
       const uploadUrl = `${siteUrl}/wp-json/wp/v2/media`;
-      this.logger.debug(`Uploading media to WordPress: ${uploadUrl}`);
+      this.logger.log(`[MediaUpload] 📤 Image downloaded (${Math.round(buffer.byteLength / 1024)} KB). Uploading to WordPress Media Library: ${uploadUrl}`);
 
       const uploadResponse = await fetch(uploadUrl, {
         method: 'POST',

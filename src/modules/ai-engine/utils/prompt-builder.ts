@@ -28,13 +28,14 @@ EXTRACTION & FORMATTING RULES:
    - Bold key takeaways using <strong>.
    - DO NOT output markdown blocks inside contentHtml (use raw HTML only).
    - DO NOT add fake citations or alter factual product/technical specifications.
-6. Image Placeholders:
+6. Image Placeholders & Stock Photo Search Strategy:
    - Identify 2 to 3 optimal visual positions in the layout:
      * One featured hero image (position: "featured_hero")
      * One or two in-content images (e.g. position: "after_h2_1", "after_h2_2", or "content_middle")
    - For each placeholder:
-     * recommendedSearch: 3 to 6 descriptive stock search keywords (e.g. "liqui moly synthetic motor oil can garage") suitable for Envato / stock libraries.
-     * altText: SEO-rich, descriptive alt text (10-15 words).
+     * recommendedSearch: MUST be 2 to 3 concise, generic, high-volume stock photography keywords (e.g. "motor oil", "car engine", "mechanic garage", "travel passport"). NEVER output long sentences, commas, or brand-specific obscure terms (e.g. do NOT write "Liqui Moly factory production", write "motor oil" or "car engine").
+     * fallbackSearch: An alternative 2-word broad stock query (e.g. "car repair", "auto workshop").
+     * altText: SEO-rich, descriptive alt text (8-14 words).
      * targetHeading: The heading or section this image illustrates.
 7. Taxonomies:
    - Pick the closest matching category slugs from the available list.
@@ -53,7 +54,8 @@ You must respond ONLY with valid, parseable JSON matching this structure:
     {
       "placeholderId": "hero_featured",
       "position": "featured_hero",
-      "recommendedSearch": "string",
+      "recommendedSearch": "motor oil",
+      "fallbackSearch": "car engine",
       "altText": "string",
       "targetHeading": "string"
     }

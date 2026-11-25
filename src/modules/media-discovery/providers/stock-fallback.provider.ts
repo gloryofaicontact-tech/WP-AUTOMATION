@@ -69,14 +69,22 @@ export class StockFallbackProvider {
     const encodedQuery = encodeURIComponent(query.trim());
     const results: DiscoveredImageAsset[] = [];
 
+    const reliablePhotoIds = [
+      'photo-1486006920555-c77dce18193b',
+      'photo-1517524008697-84bbe3c3fd98',
+      'photo-1503376780353-7e6692767b70',
+      'photo-1580273916550-e323be2ae537',
+    ];
+
     for (let i = 1; i <= limit; i++) {
-      const seed = `${query.replace(/[^a-zA-Z0-9]/g, '')}-${i}`;
+      const seed = Math.abs((query.length * 13 + i * 7) % 500);
+      const url = `https://picsum.photos/seed/${seed}/1200/800`;
       results.push({
         id: `stock-${seed}`,
         title: `${query.charAt(0).toUpperCase() + query.slice(1)} - Shot ${i}`,
-        previewUrl: `https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&w=1200&q=80&sig=${seed}`,
+        previewUrl: url,
         sourceUrl: `https://unsplash.com/s/photos/${encodedQuery}`,
-        downloadUrl: `https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&w=1920&q=85`,
+        downloadUrl: url,
         author: 'Editorial Stock Collection',
         width: 1200,
         height: 800,
