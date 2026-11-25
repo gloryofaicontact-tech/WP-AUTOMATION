@@ -216,10 +216,12 @@ export class EnvatoProvider {
             title: item.name || item.description || currentQuery,
             previewUrl: directImageUrl,
             sourceUrl: item.url || `https://elements.envato.com/items/${item.id}`,
+            elementsSearchUrl: `https://elements.envato.com/photos/${encodeURIComponent(currentQuery)}`,
             downloadUrl: directImageUrl,
             author: item.author_username || item.author_name || 'Envato Author',
             width: 1200,
             height: 800,
+            isLicensed: false,
             provider: 'envato',
           });
         }

@@ -539,3 +539,35 @@ export interface ContentSnapshot {
   updatedAt: string;
 }
 ```
+
+---
+
+## 12. Manual Envato Media Workflow (Upload, Select, Re-Search & Publish Guard)
+
+Because Envato Elements subscriptions do not provide a public download API, each placeholder in `images` now includes:
+- `elementsSearchUrl`: Direct link to search Envato Elements (`https://elements.envato.com/photos/...`)
+- `isPreviewOnly`: `true` while using an Envato preview URL; flips to `false` once replaced with a licensed upload
+
+### A. Upload Licensed Image for a Placeholder
+**`POST /api/v1/websites/:websiteId/articles/:id/media`** (`multipart/form-data`)
+- `file`: The image file downloaded from Envato Elements
+- `placeholderId`: Target placeholder ID (e.g. `featured_hero`, `after_h2_1`)
+
+Uploads directly to WordPress Media Library, swaps the preview URL in `featuredMediaUrl` and `contentHtml`, and sets `isPreviewOnly: false`.
+
+### B. Select an Alternative Returned Thumbnail
+**`PATCH /api/v1/websites/:websiteId/articles/:id/media/select`**
+```json
+{ "placeholderId": "featured_hero", "assetId": "123456" }
+```
+
+### C. Re-Search Envato with a Custom Keyword
+**`POST /api/v1/websites/:websiteId/articles/:id/media/search`**
+```json
+{ "placeholderId": "featured_hero", "query": "bali beach resort" }
+```
+
+### D. Preview Image Publish Guard
+**`POST /api/v1/websites/:websiteId/articles/:id/publish`**
+- When `"status": "publish"`, the backend blocks publishing with `400 Bad Request` if any placeholder still has `isPreviewOnly: true`, returning `previewPlaceholders` with their `elementsSearchUrl`.
+- Pass `{ "status": "publish", "allowPreviewImages": true }` to override if needed. Saving as `"draft"` is always allowed.

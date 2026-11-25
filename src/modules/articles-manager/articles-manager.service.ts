@@ -266,11 +266,43 @@ export class ArticlesManagerService {
   }
 
   /**
+   * Builds WordPress Basic Auth header and returns site URL + header.
+   */
+  private async getWpAuth(websiteId: string) {
+    const credentials = await this.websitesService.getDecryptedCredentials(websiteId);
+    const cleanPassword = credentials.applicationPassword.replace(/\s+/g, '');
+    const authHeader = `Basic ${Buffer.from(`${credentials.username}:${cleanPassword}`).toString('base64')}`;
+    return { siteUrl: credentials.url, authHeader };
+  }
+
+  /**
+   * Replaces an image URL inside draft HTML and featuredMediaUrl when swapping/uploading media.
+   */
+  private replaceImageReferences(
+    rawContent: string | null,
+    featuredMediaUrl: string | null,
+    isFeaturedSlot: boolean,
+    oldUrl: string | undefined,
+    newUrl: string,
+  ) {
+    let updatedContent = rawContent || '';
+    if (oldUrl && updatedContent.includes(oldUrl)) {
+      updatedContent = updatedContent.split(oldUrl).join(newUrl);
+    }
+    const updatedFeatured =
+      isFeaturedSlot || (oldUrl && featuredMediaUrl === oldUrl)
+        ? newUrl
+        : featuredMediaUrl;
+    return { updatedContent, updatedFeatured };
+  }
+
+  /**
    * Publishes an approved article directly to WordPress via the REST API.
    */
   async publishToWordPress(
     id: string,
     publishStatus: 'publish' | 'draft' | 'pending' = 'publish',
+    allowPreviewImages = false,
   ) {
     const article = await this.prisma.contentSnapshot.findUnique({
       where: { id },
@@ -284,16 +316,41 @@ export class ArticlesManagerService {
       throw new NotFoundException(`Article with ID ${id} not found`);
     }
 
-    const credentials = await this.websitesService.getDecryptedCredentials(article.websiteId);
-    const cleanPassword = credentials.applicationPassword.replace(/\s+/g, '');
-    const authHeader = `Basic ${Buffer.from(`${credentials.username}:${cleanPassword}`).toString('base64')}`;
+    const originalData: any = article.originalData || {};
+    const matchedImages: any[] = Array.isArray(originalData.matchedImages)
+      ? originalData.matchedImages
+      : [];
 
-    // Step 1: Upload Featured Media to WordPress Media Library if image exists
-    let featuredMediaId: number | undefined;
-    if (article.featuredMediaUrl) {
+    // Preview Image Publish Guard: block accidental live publishing with Envato preview URLs
+    if (publishStatus === 'publish' && !allowPreviewImages) {
+      const previewPlaceholders = matchedImages.filter((img) => img?.isPreviewOnly === true);
+      const hasPreviewUrl =
+        (article.featuredMediaUrl && article.featuredMediaUrl.includes('envatousercontent.com')) ||
+        (article.rawContent && article.rawContent.includes('envatousercontent.com'));
+
+      if (previewPlaceholders.length > 0 || hasPreviewUrl) {
+        const pendingList = previewPlaceholders.map((p) => ({
+          placeholderId: p.placeholderId,
+          position: p.position,
+          recommendedSearch: p.recommendedSearch,
+          elementsSearchUrl: p.elementsSearchUrl,
+        }));
+        throw new BadRequestException({
+          message:
+            'Article still contains unreplaced Envato preview images. Upload licensed images via POST /media or pass allowPreviewImages: true to publish anyway.',
+          previewPlaceholders: pendingList,
+        });
+      }
+    }
+
+    const { siteUrl, authHeader } = await this.getWpAuth(article.websiteId);
+
+    // Step 1: Upload Featured Media to WordPress Media Library if not already uploaded
+    let featuredMediaId: number | undefined = article.featuredMediaId || undefined;
+    if (!featuredMediaId && article.featuredMediaUrl) {
       this.logger.log(`Uploading featured image to WordPress Media Library...`);
       const mediaResult = await this.wpPublisherService.uploadMediaFromUrl(
-        credentials.url,
+        siteUrl,
         authHeader,
         article.featuredMediaUrl,
         article.title,
@@ -309,7 +366,7 @@ export class ArticlesManagerService {
     // Step 2: Publish or Update Post to WordPress REST API
     const existingWpPostId = article.wpPostId || undefined;
     const result = await this.wpPublisherService.publishPost(
-      credentials.url,
+      siteUrl,
       authHeader,
       article.contentType.restNamespace,
       article.contentType.restBase,
@@ -318,7 +375,7 @@ export class ArticlesManagerService {
         content: article.rawContent || '',
         excerpt: article.metaDescription || '',
         status: publishStatus,
-        featured_media: featuredMediaId || article.featuredMediaId || undefined,
+        featured_media: featuredMediaId || undefined,
         acf: (article.customFields as any) || undefined,
       },
       existingWpPostId,
@@ -336,7 +393,7 @@ export class ArticlesManagerService {
         wpStatus: result.wpStatus,
         workflowStatus,
         wpPublishedAt: publishStatus === 'publish' ? new Date() : article.wpPublishedAt,
-        featuredMediaId: featuredMediaId || article.featuredMediaId || null,
+        featuredMediaId: featuredMediaId || null,
       },
     });
 
@@ -352,6 +409,255 @@ export class ArticlesManagerService {
       workflowStatus: updated.workflowStatus,
       title: updated.title,
       publishedAt: updated.wpPublishedAt,
+    };
+  }
+
+  /**
+   * Uploads a user-provided licensed image file directly to WordPress Media Library
+   * and replaces the placeholder preview URL in the draft.
+   */
+  async uploadArticleMedia(
+    id: string,
+    file: { buffer: Buffer; mimetype: string; originalname: string },
+    placeholderId?: string,
+  ) {
+    if (!file || !file.buffer) {
+      throw new BadRequestException('Image file is required.');
+    }
+
+    const article = await this.prisma.contentSnapshot.findUnique({ where: { id } });
+    if (!article) {
+      throw new NotFoundException(`Article with ID ${id} not found`);
+    }
+
+    const originalData: any = article.originalData || {};
+    const matchedImages: any[] = Array.isArray(originalData.matchedImages)
+      ? [...originalData.matchedImages]
+      : [];
+
+    const targetIndex = placeholderId
+      ? matchedImages.findIndex((img) => img.placeholderId === placeholderId)
+      : 0;
+
+    if (placeholderId && targetIndex === -1 && matchedImages.length > 0) {
+      throw new NotFoundException(`Placeholder "${placeholderId}" not found on this article.`);
+    }
+
+    const targetPlaceholder = targetIndex >= 0 ? matchedImages[targetIndex] : null;
+    const isFeaturedSlot =
+      !targetPlaceholder || targetPlaceholder.position === 'featured_hero';
+
+    const { siteUrl, authHeader } = await this.getWpAuth(article.websiteId);
+    const uploaded = await this.wpPublisherService.uploadMediaBuffer(
+      siteUrl,
+      authHeader,
+      file.buffer,
+      file.mimetype || 'image/jpeg',
+      article.title,
+      targetPlaceholder?.altText || article.title,
+      file.originalname,
+    );
+
+    if (!uploaded || !uploaded.sourceUrl) {
+      throw new BadRequestException('Failed to upload image to WordPress Media Library.');
+    }
+
+    const oldUrl = targetPlaceholder?.selectedAsset?.downloadUrl || targetPlaceholder?.selectedAsset?.previewUrl;
+    const { updatedContent, updatedFeatured } = this.replaceImageReferences(
+      article.rawContent,
+      article.featuredMediaUrl,
+      isFeaturedSlot,
+      oldUrl,
+      uploaded.sourceUrl,
+    );
+
+    if (targetPlaceholder) {
+      matchedImages[targetIndex] = {
+        ...targetPlaceholder,
+        isPreviewOnly: false,
+        selectedAsset: {
+          id: `wp-${uploaded.id}`,
+          title: file.originalname || article.title,
+          previewUrl: uploaded.sourceUrl,
+          sourceUrl: uploaded.sourceUrl,
+          downloadUrl: uploaded.sourceUrl,
+          author: 'Uploaded (Licensed)',
+          isLicensed: true,
+          provider: 'wordpress',
+        },
+      };
+    }
+
+    await this.prisma.contentSnapshot.update({
+      where: { id },
+      data: {
+        rawContent: updatedContent,
+        featuredMediaUrl: updatedFeatured,
+        featuredMediaId: isFeaturedSlot ? uploaded.id : article.featuredMediaId,
+        originalData: {
+          ...originalData,
+          matchedImages,
+        } as any,
+      },
+    });
+
+    return {
+      id: article.id,
+      placeholderId: targetPlaceholder?.placeholderId || 'featured_hero',
+      wpMediaId: uploaded.id,
+      mediaUrl: uploaded.sourceUrl,
+      isPreviewOnly: false,
+      images: matchedImages,
+    };
+  }
+
+  /**
+   * Swaps the selected image for a placeholder from its returned alternative options.
+   */
+  async selectArticleMedia(id: string, placeholderId: string, assetId: string) {
+    const article = await this.prisma.contentSnapshot.findUnique({ where: { id } });
+    if (!article) {
+      throw new NotFoundException(`Article with ID ${id} not found`);
+    }
+
+    const originalData: any = article.originalData || {};
+    const matchedImages: any[] = Array.isArray(originalData.matchedImages)
+      ? [...originalData.matchedImages]
+      : [];
+
+    const targetIndex = matchedImages.findIndex((img) => img.placeholderId === placeholderId);
+    if (targetIndex === -1) {
+      throw new NotFoundException(`Placeholder "${placeholderId}" not found on this article.`);
+    }
+
+    const target = matchedImages[targetIndex];
+    const allOptions = [target.selectedAsset, ...(target.alternativeOptions || [])].filter(Boolean);
+    const chosen = allOptions.find((opt: any) => String(opt.id) === String(assetId));
+    if (!chosen) {
+      throw new NotFoundException(`Asset "${assetId}" not found for placeholder "${placeholderId}".`);
+    }
+
+    const oldUrl = target.selectedAsset?.downloadUrl || target.selectedAsset?.previewUrl;
+    const newUrl = chosen.downloadUrl || chosen.previewUrl;
+    const isFeaturedSlot = target.position === 'featured_hero';
+
+    const { updatedContent, updatedFeatured } = this.replaceImageReferences(
+      article.rawContent,
+      article.featuredMediaUrl,
+      isFeaturedSlot,
+      oldUrl,
+      newUrl,
+    );
+
+    const remainingAlternatives = allOptions.filter((opt: any) => String(opt.id) !== String(assetId));
+    matchedImages[targetIndex] = {
+      ...target,
+      isPreviewOnly: !chosen.isLicensed && chosen.provider === 'envato',
+      selectedAsset: chosen,
+      alternativeOptions: remainingAlternatives,
+    };
+
+    await this.prisma.contentSnapshot.update({
+      where: { id },
+      data: {
+        rawContent: updatedContent,
+        featuredMediaUrl: updatedFeatured,
+        featuredMediaId: isFeaturedSlot ? null : article.featuredMediaId,
+        originalData: {
+          ...originalData,
+          matchedImages,
+        } as any,
+      },
+    });
+
+    return {
+      id: article.id,
+      placeholderId,
+      selectedAsset: chosen,
+      featuredMediaUrl: updatedFeatured,
+      images: matchedImages,
+    };
+  }
+
+  /**
+   * Re-searches Envato for a specific placeholder using a custom keyword query.
+   */
+  async searchArticleMedia(id: string, placeholderId: string, query: string) {
+    if (!query || query.trim().length < 2) {
+      throw new BadRequestException('A search query of at least 2 characters is required.');
+    }
+
+    const article = await this.prisma.contentSnapshot.findUnique({ where: { id } });
+    if (!article) {
+      throw new NotFoundException(`Article with ID ${id} not found`);
+    }
+
+    const originalData: any = article.originalData || {};
+    const matchedImages: any[] = Array.isArray(originalData.matchedImages)
+      ? [...originalData.matchedImages]
+      : [];
+
+    const targetIndex = matchedImages.findIndex((img) => img.placeholderId === placeholderId);
+    if (targetIndex === -1) {
+      throw new NotFoundException(`Placeholder "${placeholderId}" not found on this article.`);
+    }
+
+    const assets = await this.mediaDiscoveryService.searchCustomAssets(query.trim(), 4);
+    if (!assets || assets.length === 0) {
+      return {
+        id: article.id,
+        placeholderId,
+        query: query.trim(),
+        found: 0,
+        images: matchedImages,
+      };
+    }
+
+    const target = matchedImages[targetIndex];
+    const oldUrl = target.selectedAsset?.downloadUrl || target.selectedAsset?.previewUrl;
+    const selectedAsset = assets[0];
+    const newUrl = selectedAsset.downloadUrl || selectedAsset.previewUrl;
+    const isFeaturedSlot = target.position === 'featured_hero';
+
+    const { updatedContent, updatedFeatured } = this.replaceImageReferences(
+      article.rawContent,
+      article.featuredMediaUrl,
+      isFeaturedSlot,
+      oldUrl,
+      newUrl,
+    );
+
+    matchedImages[targetIndex] = {
+      ...target,
+      recommendedSearch: query.trim(),
+      elementsSearchUrl:
+        selectedAsset.elementsSearchUrl ||
+        `https://elements.envato.com/photos/${encodeURIComponent(query.trim())}`,
+      isPreviewOnly: !selectedAsset.isLicensed && selectedAsset.provider === 'envato',
+      selectedAsset,
+      alternativeOptions: assets.slice(1),
+    };
+
+    await this.prisma.contentSnapshot.update({
+      where: { id },
+      data: {
+        rawContent: updatedContent,
+        featuredMediaUrl: updatedFeatured,
+        featuredMediaId: isFeaturedSlot ? null : article.featuredMediaId,
+        originalData: {
+          ...originalData,
+          matchedImages,
+        } as any,
+      },
+    });
+
+    return {
+      id: article.id,
+      placeholderId,
+      query: query.trim(),
+      found: assets.length,
+      featuredMediaUrl: updatedFeatured,
+      images: matchedImages,
     };
   }
 

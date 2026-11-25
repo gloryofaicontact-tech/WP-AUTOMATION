@@ -8,10 +8,13 @@ import {
   Body,
   Query,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ArticlesManagerService } from './articles-manager.service';
 import { ProcessArticleRequestDto } from './dto/process-article.dto';
 import { UpdateArticleDraftDto } from './dto/update-article-draft.dto';
@@ -83,9 +86,55 @@ export class ArticlesManagerController {
   }
 
   /**
+   * Uploads a licensed image file (e.g. downloaded from Envato Elements) directly
+   * to WordPress Media Library and replaces the placeholder preview in the draft.
+   */
+  @Post(':id/media')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.EDITOR)
+  @UseInterceptors(FileInterceptor('file'))
+  @HttpCode(HttpStatus.OK)
+  @ResponseMessage('Licensed image uploaded and attached to draft successfully')
+  async uploadArticleMedia(
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file: { buffer: Buffer; mimetype: string; originalname: string },
+    @Body('placeholderId') placeholderId?: string,
+  ) {
+    return this.articlesService.uploadArticleMedia(id, file, placeholderId);
+  }
+
+  /**
+   * Selects one of the returned alternative Envato images for a placeholder.
+   */
+  @Patch(':id/media/select')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.EDITOR)
+  @ResponseMessage('Placeholder image updated successfully')
+  async selectArticleMedia(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body('placeholderId') placeholderId: string,
+    @Body('assetId') assetId: string,
+  ) {
+    return this.articlesService.selectArticleMedia(id, placeholderId, assetId);
+  }
+
+  /**
+   * Re-searches Envato for a specific placeholder with a custom keyword.
+   */
+  @Post(':id/media/search')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.EDITOR)
+  @HttpCode(HttpStatus.OK)
+  @ResponseMessage('Media options refreshed successfully')
+  async searchArticleMedia(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body('placeholderId') placeholderId: string,
+    @Body('query') query: string,
+  ) {
+    return this.articlesService.searchArticleMedia(id, placeholderId, query);
+  }
+
+  /**
    * Publishes or updates the article directly on WordPress via the REST API.
    * Passing { "status": "draft" } unpublishes/reverts an existing post to draft on WordPress.
-   * Passing { "status": "publish" } makes it live.
+   * Passing { "status": "publish" } makes it live (blocks if preview-only images remain unless allowPreviewImages: true).
    */
   @Post(':id/publish')
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.EDITOR)
@@ -94,8 +143,13 @@ export class ArticlesManagerController {
   async publishToWordPress(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('status') status?: 'publish' | 'draft' | 'pending',
+    @Body('allowPreviewImages') allowPreviewImages?: boolean,
   ) {
-    return this.articlesService.publishToWordPress(id, status || 'publish');
+    return this.articlesService.publishToWordPress(
+      id,
+      status || 'publish',
+      Boolean(allowPreviewImages),
+    );
   }
 
   /**

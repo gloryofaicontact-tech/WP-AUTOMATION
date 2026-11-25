@@ -11,6 +11,80 @@ export class WpPublisherService {
   private readonly logger = new Logger(WpPublisherService.name);
 
   /**
+   * Uploads an in-memory image Buffer directly to WordPress Media Library.
+   */
+  async uploadMediaBuffer(
+    siteUrl: string,
+    authHeader: string,
+    buffer: Buffer,
+    contentType: string,
+    title: string,
+    altText?: string,
+    originalFilename?: string,
+  ): Promise<{ id: number; sourceUrl: string } | null> {
+    try {
+      let extension = 'jpg';
+      if (contentType.includes('png')) extension = 'png';
+      else if (contentType.includes('webp')) extension = 'webp';
+      else if (contentType.includes('gif')) extension = 'gif';
+
+      const sanitizedSlug = title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .slice(0, 30);
+      const safeOriginal = originalFilename
+        ? originalFilename.replace(/[^a-zA-Z0-9._-]/g, '-')
+        : null;
+      const filename = safeOriginal || `${sanitizedSlug || 'article-image'}-${Date.now()}.${extension}`;
+
+      const uploadUrl = `${siteUrl}/wp-json/wp/v2/media`;
+      this.logger.log(`Uploading ${buffer.length} bytes to WordPress Media: ${uploadUrl} (${filename})`);
+
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: authHeader,
+          'Content-Disposition': `attachment; filename="${filename}"`,
+          'Content-Type': contentType,
+        },
+        body: new Uint8Array(buffer),
+        signal: AbortSignal.timeout(30000),
+      });
+
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text().catch(() => '');
+        this.logger.error(`WordPress media upload failed: HTTP ${uploadResponse.status} - ${errorText}`);
+        return null;
+      }
+
+      const mediaData: any = await uploadResponse.json();
+      const mediaId = mediaData.id;
+
+      if (altText && mediaId) {
+        await fetch(`${siteUrl}/wp-json/wp/v2/media/${mediaId}`, {
+          method: 'POST',
+          headers: {
+            Authorization: authHeader,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            alt_text: altText,
+            title: title,
+          }),
+        }).catch((err) => this.logger.warn(`Failed to update media alt text: ${err.message}`));
+      }
+
+      return {
+        id: mediaId,
+        sourceUrl: mediaData.source_url || mediaData.guid?.rendered || '',
+      };
+    } catch (err: any) {
+      this.logger.error(`Error uploading media buffer to WordPress: ${err.message}`);
+      return null;
+    }
+  }
+
+  /**
    * Downloads an image from a URL and uploads it to WordPress Media Library.
    */
   async uploadMediaFromUrl(
@@ -41,59 +115,15 @@ export class WpPublisherService {
       const arrayBuffer = await imgResponse.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
 
-      let extension = 'jpg';
-      if (contentType.includes('png')) extension = 'png';
-      else if (contentType.includes('webp')) extension = 'webp';
-
-      const sanitizedSlug = title
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .slice(0, 30);
-      const filename = `${sanitizedSlug || 'featured-image'}-${Date.now()}.${extension}`;
-
-      const uploadUrl = `${siteUrl}/wp-json/wp/v2/media`;
-      this.logger.log(`Uploading ${buffer.length} bytes to WordPress Media: ${uploadUrl}`);
-
-      const uploadResponse = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: {
-          Authorization: authHeader,
-          'Content-Disposition': `attachment; filename="${filename}"`,
-          'Content-Type': contentType,
-        },
-        body: buffer,
-        signal: AbortSignal.timeout(20000),
-      });
-
-      if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text().catch(() => '');
-        this.logger.error(`WordPress media upload failed: HTTP ${uploadResponse.status} - ${errorText}`);
-        return null;
-      }
-
-      const mediaData: any = await uploadResponse.json();
-      const mediaId = mediaData.id;
-
-      if (altText && mediaId) {
-        await fetch(`${siteUrl}/wp-json/wp/v2/media/${mediaId}`, {
-          method: 'POST',
-          headers: {
-            Authorization: authHeader,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            alt_text: altText,
-            title: title,
-          }),
-        }).catch((err) => this.logger.warn(`Failed to update media alt text: ${err.message}`));
-      }
+      const uploaded = await this.uploadMediaBuffer(siteUrl, authHeader, buffer, contentType, title, altText);
+      if (!uploaded) return null;
 
       return {
-        id: mediaId,
-        sourceUrl: mediaData.source_url || mediaData.guid?.rendered || imageUrl,
+        id: uploaded.id,
+        sourceUrl: uploaded.sourceUrl || imageUrl,
       };
     } catch (err: any) {
-      this.logger.error(`Error uploading media to WordPress: ${err.message}`);
+      this.logger.error(`Error downloading media from URL: ${err.message}`);
       return null;
     }
   }

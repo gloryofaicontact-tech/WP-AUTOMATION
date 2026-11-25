@@ -59,12 +59,17 @@ export class MediaDiscoveryService {
 
         const selectedAsset = assets[0];
         const alternativeOptions = assets.slice(1);
+        const elementsSearchUrl =
+          selectedAsset?.elementsSearchUrl ||
+          `https://elements.envato.com/photos/${encodeURIComponent(placeholder.recommendedSearch)}`;
 
         return {
           placeholderId: placeholder.placeholderId,
           position: placeholder.position,
           recommendedSearch: placeholder.recommendedSearch,
           fallbackSearch: placeholder.fallbackSearch,
+          elementsSearchUrl,
+          isPreviewOnly: selectedAsset ? !selectedAsset.isLicensed && selectedAsset.provider === 'envato' : true,
           altText: placeholder.altText,
           targetHeading: placeholder.targetHeading,
           selectedAsset,
@@ -74,5 +79,18 @@ export class MediaDiscoveryService {
     );
 
     return matchedPlaceholders;
+  }
+
+  /**
+   * Re-runs Envato photo search for a single custom keyword query.
+   */
+  async searchCustomAssets(query: string, limit = 4) {
+    const effectiveKeys = await this.aiSettingsService.getEffectiveKeys();
+    const envatoToken = effectiveKeys.envatoToken || undefined;
+    const assets = await this.envatoProvider.searchPhotos(query, limit, envatoToken);
+    if (assets && assets.length > 0) {
+      return assets;
+    }
+    return this.stockFallbackProvider.searchPhotos(query, limit);
   }
 }
