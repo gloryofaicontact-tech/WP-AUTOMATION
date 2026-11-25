@@ -7,6 +7,7 @@ import { MediaDiscoveryService } from '../media-discovery/media-discovery.servic
 import { WpPublisherService } from './services/wp-publisher.service';
 import { ProcessArticleRequestDto } from './dto/process-article.dto';
 import { UpdateArticleDraftDto } from './dto/update-article-draft.dto';
+import { ParsedArticleResult } from '../ai-engine/interfaces/parsed-article.interface';
 import { WorkflowStatus } from '@prisma/client';
 
 @Injectable()
@@ -47,22 +48,76 @@ export class ArticlesManagerService {
     const acfFields = (contentType.schema as any)?.properties?.acf?.fields || [];
     const supportedFeatures = Object.keys(contentType.supports || {});
 
-    // Step 1: Run AI Document Parser
-    this.logger.log(`Parsing raw document for website "${website.name}" (Type: "${contentType.name}")...`);
-    const aiParsed = await this.aiEngineService.parseArticle(
-      dto.rawDocument,
-      {
-        websiteName: website.name,
-        websiteUrl: website.url,
-        contentTypeSlug: contentType.slug,
-        contentTypeName: contentType.name,
-        availableCategories,
-        availableTags,
-        supportedFeatures,
-        acfFields,
-      },
-      dto.preferredAiProvider,
-    );
+    // Step 1: Structured Mode (skip backend AI) vs Raw Document Mode (use backend AI)
+    let aiParsed: ParsedArticleResult;
+    const isStructuredInput = Boolean(dto.title?.trim() && dto.contentHtml?.trim());
+
+    if (isStructuredInput) {
+      const cleanTitle = dto.title!.trim();
+      const autoSlug = (dto.slug?.trim() || cleanTitle)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+
+      const imagePlaceholders =
+        dto.imagePlaceholders && dto.imagePlaceholders.length > 0
+          ? dto.imagePlaceholders.map((p, idx) => ({
+              placeholderId: idx === 0 && !p.position ? 'featured_hero' : `placeholder_${idx + 1}`,
+              position: p.position || (idx === 0 ? 'featured_hero' : 'after_h2_1'),
+              recommendedSearch: p.recommendedSearch.trim(),
+              fallbackSearch: p.fallbackSearch?.trim(),
+              altText: p.altText?.trim() || cleanTitle,
+              targetHeading: p.targetHeading,
+            }))
+          : [
+              {
+                placeholderId: 'featured_hero',
+                position: 'featured_hero' as const,
+                recommendedSearch: (dto.focusKeyword || cleanTitle)
+                  .split(/\s+/)
+                  .slice(0, 3)
+                  .join(' '),
+                altText: cleanTitle,
+              },
+            ];
+
+      this.logger.log(
+        `Using pre-structured input for "${website.name}" (Title: "${cleanTitle}", skipping backend AI call).`,
+      );
+
+      aiParsed = {
+        title: cleanTitle,
+        slug: autoSlug,
+        focusKeyword: dto.focusKeyword?.trim() || '',
+        metaDescription: dto.metaDescription?.trim() || '',
+        contentHtml: dto.contentHtml!.trim(),
+        imagePlaceholders,
+        categorySlugs: dto.categorySlugs || [],
+        tagSlugs: dto.tagSlugs || [],
+        customFields: dto.customFields || {},
+        summaryNotes: 'Structured directly by MCP client (backend AI bypassed).',
+      };
+    } else if (dto.rawDocument?.trim()) {
+      this.logger.log(`Parsing raw document for website "${website.name}" (Type: "${contentType.name}")...`);
+      aiParsed = await this.aiEngineService.parseArticle(
+        dto.rawDocument,
+        {
+          websiteName: website.name,
+          websiteUrl: website.url,
+          contentTypeSlug: contentType.slug,
+          contentTypeName: contentType.name,
+          availableCategories,
+          availableTags,
+          supportedFeatures,
+          acfFields,
+        },
+        dto.preferredAiProvider,
+      );
+    } else {
+      throw new BadRequestException(
+        'Provide either rawDocument (for AI parsing) or both title and contentHtml (for pre-structured mode).',
+      );
+    }
 
     // Step 2: Run Media & Envato Discovery for recommended placeholders
     this.logger.log(`Discovering media assets for ${aiParsed.imagePlaceholders.length} layout placeholders...`);
@@ -82,7 +137,7 @@ export class ArticlesManagerService {
         slug: aiParsed.slug,
         rawContent: aiParsed.contentHtml,
         rawExcerpt: aiParsed.metaDescription,
-        rawDocument: dto.rawDocument,
+        rawDocument: dto.rawDocument || dto.contentHtml || '',
         focusKeyword: aiParsed.focusKeyword,
         metaDescription: aiParsed.metaDescription,
         wpStatus: 'draft',

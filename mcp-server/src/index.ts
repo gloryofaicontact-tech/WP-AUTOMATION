@@ -17,7 +17,11 @@ import { getContentTypesTool, getContentTypes } from './tools/get-content-types.
 import { listArticlesTool, listArticles } from './tools/list-articles.js';
 import { getArticleTool, getArticle } from './tools/get-article.js';
 import { updateArticleTool, updateArticle } from './tools/update-article.js';
-import { sendArticleTool, sendArticle } from './tools/send-article.js';
+import {
+  sendArticleTool,
+  sendArticle,
+  type SendArticleArgs,
+} from './tools/send-article.js';
 import { publishArticleTool, publishArticle } from './tools/publish-article.js';
 import {
   listWpContentTool,
@@ -121,16 +125,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
 
       case 'send_article_to_backend':
-        text = await sendArticle(
-          client,
-          args as {
-            websiteId: string;
-            contentTypeSlug: string;
-            rawContent: string;
-            autoPublish?: boolean;
-            allowPreviewImages?: boolean;
-          },
-        );
+        text = await sendArticle(client, args as unknown as SendArticleArgs);
         break;
 
       case 'publish_article':

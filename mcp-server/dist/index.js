@@ -12,7 +12,7 @@ import { getContentTypesTool, getContentTypes } from './tools/get-content-types.
 import { listArticlesTool, listArticles } from './tools/list-articles.js';
 import { getArticleTool, getArticle } from './tools/get-article.js';
 import { updateArticleTool, updateArticle } from './tools/update-article.js';
-import { sendArticleTool, sendArticle } from './tools/send-article.js';
+import { sendArticleTool, sendArticle, } from './tools/send-article.js';
 import { publishArticleTool, publishArticle } from './tools/publish-article.js';
 import { listWpContentTool, listWpContent, getWpContentItemTool, getWpContentItem, } from './tools/wp-content.js';
 // ── Config from environment (set in claude_desktop_config.json) ──────────────

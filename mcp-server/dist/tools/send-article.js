@@ -1,6 +1,9 @@
 export const sendArticleTool = {
     name: 'send_article_to_backend',
-    description: 'Send a raw article (plain text, markdown, or pasted content) to the WP-Automation backend. The backend uses AI to structure it into SEO-ready HTML, discovers Envato images, and saves a draft. Returns article ID, SEO fields, and Envato image details/links.',
+    description: 'Send an article to the WP-Automation backend to discover Envato images and save a WordPress draft. ' +
+        'PREFERRED (Structured Mode): If you already matched an existing live layout/schema via get_wp_content_item and get_content_types, ' +
+        'pass `title` + `contentHtml` (+ optional `slug`, `focusKeyword`, `metaDescription`, `customFields`, `imagePlaceholders`) to preserve your exact HTML/ACF and skip redundant backend AI parsing. ' +
+        'FALLBACK (Raw Mode): Pass `rawContent` to let the backend AI parse plain text.',
     inputSchema: {
         type: 'object',
         properties: {
@@ -12,9 +15,67 @@ export const sendArticleTool = {
                 type: 'string',
                 description: 'The post type slug from get_content_types (e.g. "post", "tour-package", "destination")',
             },
+            title: {
+                type: 'string',
+                description: 'Structured Mode: Final article title (required with contentHtml when bypassing backend AI)',
+            },
+            contentHtml: {
+                type: 'string',
+                description: 'Structured Mode: Final clean HTML content matching your target site layout',
+            },
+            slug: {
+                type: 'string',
+                description: 'Structured Mode: Optional URL slug (auto-generated from title if omitted)',
+            },
+            focusKeyword: {
+                type: 'string',
+                description: 'Structured Mode: Primary SEO focus keyword',
+            },
+            metaDescription: {
+                type: 'string',
+                description: 'Structured Mode: SEO meta description (150-160 chars)',
+            },
+            categorySlugs: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Structured Mode: Category slugs',
+            },
+            tagSlugs: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Structured Mode: Tag slugs',
+            },
+            customFields: {
+                type: 'object',
+                description: 'Structured Mode: ACF / custom field key-value pairs matching get_content_types(slug)',
+            },
+            imagePlaceholders: {
+                type: 'array',
+                description: 'Structured Mode: Optional 2-3 word Envato search keywords for featured/inline images.',
+                items: {
+                    type: 'object',
+                    properties: {
+                        position: {
+                            type: 'string',
+                            enum: ['featured_hero', 'after_h2_1', 'after_h2_2', 'after_h2_3', 'content_middle', 'content_end'],
+                        },
+                        recommendedSearch: {
+                            type: 'string',
+                            description: 'Short 2-3 word stock photo keyword (e.g. "sri lanka temple")',
+                        },
+                        fallbackSearch: {
+                            type: 'string',
+                            description: 'Broader 2-word fallback keyword (e.g. "ancient ruins")',
+                        },
+                        altText: { type: 'string' },
+                        targetHeading: { type: 'string' },
+                    },
+                    required: ['recommendedSearch'],
+                },
+            },
             rawContent: {
                 type: 'string',
-                description: 'The raw article text to process. Can be plain text, markdown, or HTML. The AI will restructure it.',
+                description: 'Raw Mode fallback: Unstructured plain text / markdown if you want the backend AI to format it.',
             },
             autoPublish: {
                 type: 'boolean',
@@ -27,16 +88,40 @@ export const sendArticleTool = {
                 default: false,
             },
         },
-        required: ['websiteId', 'contentTypeSlug', 'rawContent'],
+        required: ['websiteId', 'contentTypeSlug'],
     },
 };
 export async function sendArticle(client, args) {
-    console.error(`[MCP] Sending article to backend (website: ${args.websiteId}, type: ${args.contentTypeSlug})...`);
-    const article = await client.post(`/websites/${args.websiteId}/articles/process`, {
+    const isStructured = Boolean(args.title?.trim() && args.contentHtml?.trim());
+    if (!isStructured && !args.rawContent?.trim()) {
+        throw new Error('Provide either `title` + `contentHtml` (Structured Mode) or `rawContent` (Raw Mode).');
+    }
+    console.error(`[MCP] Sending article to backend (website: ${args.websiteId}, type: ${args.contentTypeSlug}, mode: ${isStructured ? 'structured' : 'raw-ai'})...`);
+    const payload = {
         contentTypeSlug: args.contentTypeSlug,
-        rawDocument: args.rawContent,
-    });
-    let result = `## ✅ Article Processed & Saved as Draft\n\n`;
+    };
+    if (args.rawContent !== undefined)
+        payload.rawDocument = args.rawContent;
+    if (args.title !== undefined)
+        payload.title = args.title;
+    if (args.contentHtml !== undefined)
+        payload.contentHtml = args.contentHtml;
+    if (args.slug !== undefined)
+        payload.slug = args.slug;
+    if (args.focusKeyword !== undefined)
+        payload.focusKeyword = args.focusKeyword;
+    if (args.metaDescription !== undefined)
+        payload.metaDescription = args.metaDescription;
+    if (args.categorySlugs !== undefined)
+        payload.categorySlugs = args.categorySlugs;
+    if (args.tagSlugs !== undefined)
+        payload.tagSlugs = args.tagSlugs;
+    if (args.customFields !== undefined)
+        payload.customFields = args.customFields;
+    if (args.imagePlaceholders !== undefined)
+        payload.imagePlaceholders = args.imagePlaceholders;
+    const article = await client.post(`/websites/${args.websiteId}/articles/process`, payload);
+    let result = `## ✅ Article Saved as Draft (${isStructured ? 'Structured Mode — Direct' : 'AI Parsed'})\n\n`;
     result += `- **Title:** ${article.title}\n`;
     result += `- **Slug:** \`${article.slug ?? '—'}\`\n`;
     result += `- **Article ID:** \`${article.id}\`\n`;
