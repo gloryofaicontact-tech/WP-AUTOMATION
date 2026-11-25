@@ -162,7 +162,8 @@ export class ContentTypeService {
    * Retrieves single content type by slug.
    */
   async findByWebsiteAndSlug(websiteId: string, slug: string): Promise<ContentType> {
-    const contentType = await this.prisma.contentType.findUnique({
+    // 1. Try exact match
+    let contentType = await this.prisma.contentType.findUnique({
       where: {
         websiteId_slug: {
           websiteId,
@@ -170,6 +171,22 @@ export class ContentTypeService {
         },
       },
     });
+
+    // 2. If not found, try flexible fallback (hyphens <-> underscores)
+    if (!contentType) {
+      const alternateSlug = slug.includes('-')
+        ? slug.replace(/-/g, '_')
+        : slug.replace(/_/g, '-');
+
+      contentType = await this.prisma.contentType.findUnique({
+        where: {
+          websiteId_slug: {
+            websiteId,
+            slug: alternateSlug,
+          },
+        },
+      });
+    }
 
     if (!contentType) {
       throw new NotFoundException(`Content type '${slug}' not found for this website.`);
