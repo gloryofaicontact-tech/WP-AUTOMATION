@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "wp-automation": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\weblook\\Desktop\\Project\\WP-AUTOMATION\\mcp-server\\dist\\index.js"
+      ],
+      "env": {
+        "WP_BACKEND_URL": "http://localhost:3000/api/v1",
+        "WP_BACKEND_TOKEN": "PASTE_YOUR_JWT_TOKEN_HERE"
+      }
+    }
+  }
+}
