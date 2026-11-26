@@ -31,6 +31,8 @@ import { ArticlesModule } from './modules/Articles/articles.module';
 import { AiEngineModule } from './modules/ai-engine/ai-engine.module';
 import { MediaDiscoveryModule } from './modules/media-discovery/media-discovery.module';
 import { ArticlesManagerModule } from './modules/articles-manager/articles-manager.module';
+import { ApiKeysModule } from './modules/api-keys/api-keys.module';
+import { McpModule } from './modules/mcp/mcp.module';
 import { CacheModule } from './infrastructure/cache/cache.module';
 import { getThrottlerModuleOptions } from './config/throttle-module.config';
 
@@ -85,6 +87,8 @@ import { getThrottlerModuleOptions } from './config/throttle-module.config';
     AiEngineModule,
     MediaDiscoveryModule,
     ArticlesManagerModule,
+    ApiKeysModule,
+    McpModule,
   ],
 
   providers: [

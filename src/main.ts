@@ -69,7 +69,7 @@ async function bootstrap() {
   );
 
   const prefix = config.get<string>('app.apiPrefix') ?? 'api/v1';
-  app.setGlobalPrefix(prefix);
+  app.setGlobalPrefix(prefix, { exclude: ['mcp'] });
 
   const port = config.get<number>('app.port') || 3000;
   const server = await app.listen(port);

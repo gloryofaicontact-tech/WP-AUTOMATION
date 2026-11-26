@@ -35,6 +35,7 @@ model User {
   auditLogs       AuditLog[]
   notifications   Notification[]
   websites        Website[]
+  apiKeys         ApiKey[]
 
   @@index([role])
   @@index([status])
@@ -89,6 +90,26 @@ model AuthToken {
   @@index([userId, type])
   @@index([expiresAt])
   @@map("auth_tokens")
+}
+
+// ============================================
+// PERSONAL MCP / API KEYS
+// ============================================
+
+model ApiKey {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  name       String    @db.VarChar(120)
+  keyPrefix  String    @map("key_prefix") @db.VarChar(32)
+  keyHash    String    @unique @map("key_hash") @db.VarChar(128)
+  lastUsedAt DateTime? @map("last_used_at")
+  revokedAt  DateTime? @map("revoked_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("api_keys")
 }
 
 // ============================================
