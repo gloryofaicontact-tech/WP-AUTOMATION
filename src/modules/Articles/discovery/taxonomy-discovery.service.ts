@@ -79,4 +79,45 @@ export class TaxonomyDiscoveryService {
       return [];
     }
   }
+
+  /**
+   * Fetches top active terms (name + slug) for a taxonomy so both AI and MCP
+   * can assign real existing WordPress categories/tags/custom terms.
+   */
+  async fetchTerms(
+    url: string,
+    authHeader: string,
+    restNamespace: string,
+    restBase: string,
+    limit = 30,
+  ): Promise<Array<{ id: number; name: string; slug: string }>> {
+    try {
+      const endpoint = `${url}/wp-json/${restNamespace}/${restBase}?per_page=${limit}&orderby=count&order=desc`;
+      const response = await fetch(endpoint, {
+        method: 'GET',
+        headers: {
+          Authorization: authHeader,
+          Accept: 'application/json',
+        },
+        signal: AbortSignal.timeout(8000),
+      });
+
+      if (!response.ok) {
+        return [];
+      }
+
+      const items: any[] = await response.json();
+      if (!Array.isArray(items)) return [];
+
+      return items
+        .filter((t) => t && t.slug && t.name)
+        .map((t) => ({
+          id: Number(t.id),
+          name: String(t.name),
+          slug: String(t.slug),
+        }));
+    } catch {
+      return [];
+    }
+  }
 }

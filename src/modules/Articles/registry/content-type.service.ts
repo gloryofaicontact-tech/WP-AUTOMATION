@@ -34,8 +34,20 @@ export class ContentTypeService {
     // 1. Discover all eligible Post Types
     const discoveredTypes = await this.postTypeDiscovery.discover(credentials.url, authHeader);
 
-    // 2. Discover all Taxonomies
+    // 2. Discover all Taxonomies & their real terms
     const allTaxonomies = await this.taxonomyDiscovery.discover(credentials.url, authHeader);
+    const taxonomyTermsMap = new Map<string, Array<{ id: number; name: string; slug: string }>>();
+    await Promise.all(
+      allTaxonomies.map(async (tax) => {
+        const terms = await this.taxonomyDiscovery.fetchTerms(
+          credentials.url,
+          authHeader,
+          tax.restNamespace,
+          tax.restBase,
+        );
+        taxonomyTermsMap.set(tax.slug, terms);
+      }),
+    );
 
     const discoveredSlugs = new Set<string>();
     const savedContentTypes: ContentType[] = [];
@@ -44,7 +56,7 @@ export class ContentTypeService {
     for (const postType of discoveredTypes) {
       discoveredSlugs.add(postType.slug);
 
-      // Map taxonomies linked to this post type
+      // Map taxonomies linked to this post type (including real terms)
       const associatedTaxonomies = allTaxonomies
         .filter((tax) => tax.types.includes(postType.slug))
         .map((tax) => ({
@@ -53,6 +65,7 @@ export class ContentTypeService {
           restBase: tax.restBase,
           restNamespace: tax.restNamespace,
           hierarchical: tax.hierarchical,
+          terms: taxonomyTermsMap.get(tax.slug) || [],
         }));
 
       // Inspect schema via OPTIONS request
@@ -62,6 +75,22 @@ export class ContentTypeService {
         postType.restBase,
         authHeader,
       );
+
+      // Inspect 1 live sample post (zero AI cost) to detect real HTML layout & image slots
+      const layoutBlueprint = await this.inspectSampleLayout(
+        credentials.url,
+        postType.restNamespace,
+        postType.restBase,
+        authHeader,
+        postType.supports,
+      );
+
+      const enrichedSchema = {
+        ...(typeof schemaResult.schema === 'object' && schemaResult.schema !== null
+          ? (schemaResult.schema as Record<string, any>)
+          : {}),
+        _layoutBlueprint: layoutBlueprint,
+      };
 
       // Upsert into content_types table
       const record = await this.prisma.contentType.upsert({
@@ -79,7 +108,7 @@ export class ContentTypeService {
           hierarchical: postType.hierarchical,
           supports: postType.supports,
           taxonomies: associatedTaxonomies,
-          schema: schemaResult.schema,
+          schema: enrichedSchema,
           schemaStatus: schemaResult.schemaStatus,
           isActive: true,
           lastDiscoveredAt: new Date(),
@@ -94,7 +123,7 @@ export class ContentTypeService {
           hierarchical: postType.hierarchical,
           supports: postType.supports,
           taxonomies: associatedTaxonomies,
-          schema: schemaResult.schema,
+          schema: enrichedSchema,
           schemaStatus: schemaResult.schemaStatus,
           isActive: true,
         },
@@ -193,5 +222,95 @@ export class ContentTypeService {
     }
 
     return contentType;
+  }
+
+  /**
+   * Fetches up to 3 latest published posts for a post type (zero AI cost) and picks
+   * the richest sample to extract real image slots, clean HTML structure, ACF & meta keys.
+   */
+  private async inspectSampleLayout(
+    siteUrl: string,
+    restNamespace: string,
+    restBase: string,
+    authHeader: string,
+    supports: Record<string, any> | null | undefined,
+  ) {
+    const supportsThumbnail = Boolean(supports && supports.thumbnail);
+    const fallbackBlueprint = {
+      hasSamplePost: false,
+      hasFeaturedImage: supportsThumbnail,
+      inlineImageCount: 0,
+      sampleHeadings: [] as string[],
+      sampleHtmlSnippet: '',
+      sampleAcfExample: null as Record<string, any> | null,
+      sampleMetaKeys: [] as string[],
+    };
+
+    try {
+      const url = `${siteUrl}/wp-json/${restNamespace}/${restBase}?per_page=3&status=publish`;
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: authHeader,
+          Accept: 'application/json',
+        },
+        signal: AbortSignal.timeout(8000),
+      });
+
+      if (!res.ok) {
+        return fallbackBlueprint;
+      }
+
+      const items: any[] = await res.json();
+      if (!Array.isArray(items) || items.length === 0) {
+        return fallbackBlueprint;
+      }
+
+      // Pick the richest sample post (most content length)
+      const sample = items.reduce((best, curr) => {
+        const bestLen = (best?.content?.rendered || '').length;
+        const currLen = (curr?.content?.rendered || '').length;
+        return currLen > bestLen ? curr : best;
+      }, items[0]);
+
+      const rawHtml: string = sample.content?.rendered || sample.content?.raw || '';
+      const imgMatches = rawHtml.match(/<img\b[^>]*>/gi) || [];
+      const headingMatches = [...rawHtml.matchAll(/<h[23][^>]*>(.*?)<\/h[23]>/gi)]
+        .map((m) => m[1].replace(/<[^>]+>/g, '').trim())
+        .filter(Boolean)
+        .slice(0, 12);
+
+      // Strip only <script>/<style> tags and noisy responsive image attributes; keep class, style, and WP blocks intact
+      const cleanSkeleton = rawHtml
+        .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, '')
+        .replace(/\s+(?:data-[a-z0-9-]+|srcset|sizes|decoding|loading|width|height)="[^"]*"/gi, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim()
+        .slice(0, 16000);
+
+      const hasFeaturedImage = supportsThumbnail || Boolean(sample.featured_media);
+      const sampleAcfExample =
+        sample.acf && typeof sample.acf === 'object' && Object.keys(sample.acf).length > 0
+          ? sample.acf
+          : null;
+
+      const sampleMetaKeys =
+        sample.meta && typeof sample.meta === 'object'
+          ? Object.keys(sample.meta).filter((k) => !k.startsWith('_'))
+          : [];
+
+      return {
+        hasSamplePost: true,
+        hasFeaturedImage,
+        inlineImageCount: imgMatches.length,
+        sampleHeadings: headingMatches,
+        sampleHtmlSnippet: cleanSkeleton,
+        sampleAcfExample,
+        sampleMetaKeys,
+      };
+    } catch (err: any) {
+      this.logger.debug(`Sample layout inspection skipped for ${restBase}: ${err.message}`);
+      return fallbackBlueprint;
+    }
   }
 }

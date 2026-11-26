@@ -25,12 +25,36 @@ export async function getContentTypes(client, args) {
         if (ct.supports?.length)
             out += `- **Supports:** ${ct.supports.join(', ')}\n`;
         if (ct.taxonomies?.length) {
-            out += `- **Taxonomies:** ${ct.taxonomies.map((t) => `${t.name} (\`${t.slug}\`)`).join(', ')}\n`;
+            out += `\n### Taxonomies & Existing Terms\n`;
+            for (const t of ct.taxonomies) {
+                const termList = t.terms?.length
+                    ? t.terms.map((term) => `${term.name} (\`${term.slug}\`)`).join(', ')
+                    : 'No terms discovered yet';
+                out += `- **${t.name}** (\`${t.slug}\`): ${termList}\n`;
+            }
+        }
+        if (ct.layoutBlueprint) {
+            const bp = ct.layoutBlueprint;
+            out += `\n### Detected Layout Blueprint\n`;
+            out += `- **Sample Found:** ${bp.hasSamplePost ? 'Yes' : 'No (no published posts yet)'}\n`;
+            out += `- **Featured Cover Image:** ${bp.hasFeaturedImage ? 'Yes' : 'No'} | **Inline Images:** ${bp.inlineImageCount ?? 0}\n`;
+            if (bp.sampleHeadings?.length) {
+                out += `- **Typical Headings:** ${bp.sampleHeadings.join(' | ')}\n`;
+            }
+            if (bp.sampleMetaKeys?.length) {
+                out += `- **Meta Keys:** ${bp.sampleMetaKeys.join(', ')}\n`;
+            }
+            if (bp.sampleAcfExample) {
+                out += `\n#### Example ACF Values\n\`\`\`json\n${JSON.stringify(bp.sampleAcfExample, null, 2)}\n\`\`\`\n`;
+            }
+            if (bp.sampleHtmlSnippet) {
+                out += `\n#### Clean HTML Structure Sample\n\`\`\`html\n${bp.sampleHtmlSnippet}\n\`\`\`\n`;
+            }
         }
         if (ct.acfFields && ct.acfFields.length > 0) {
             out += `\n### ACF / Custom Fields Schema\n\`\`\`json\n${JSON.stringify(ct.acfFields, null, 2)}\n\`\`\`\n`;
         }
-        else {
+        else if (!ct.layoutBlueprint?.sampleAcfExample) {
             out += `\n> No ACF custom fields detected for this content type.\n`;
         }
         return out;

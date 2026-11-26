@@ -13,6 +13,16 @@ export interface ParsedArticleResult {
   summaryNotes?: string;
 }
 
+export interface ContentTypeLayoutBlueprint {
+  hasSamplePost: boolean;
+  hasFeaturedImage: boolean;
+  inlineImageCount: number;
+  sampleHeadings?: string[];
+  sampleHtmlSnippet?: string;
+  sampleAcfExample?: Record<string, any> | null;
+  sampleMetaKeys?: string[];
+}
+
 export interface ArticleParsingContext {
   websiteName?: string;
   websiteUrl?: string;
@@ -22,4 +32,5 @@ export interface ArticleParsingContext {
   availableTags?: Array<{ name: string; slug: string }>;
   supportedFeatures?: string[];
   acfFields?: string[];
+  layoutBlueprint?: ContentTypeLayoutBlueprint | null;
 }

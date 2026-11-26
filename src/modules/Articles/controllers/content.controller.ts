@@ -96,6 +96,7 @@ export class ContentController {
           name: t.name,
           slug: t.slug,
           hierarchical: Boolean(t.hierarchical),
+          terms: Array.isArray(t.terms) ? t.terms : [],
         }))
       : [];
 
@@ -105,6 +106,7 @@ export class ContentController {
         : [];
 
     const acfFields = (item.schema as any)?.properties?.acf?.fields || [];
+    const layoutBlueprint = (item.schema as any)?._layoutBlueprint || null;
 
     return {
       id: item.id,
@@ -118,6 +120,7 @@ export class ContentController {
       supports: supportedFeatures,
       taxonomies,
       acfFields,
+      layoutBlueprint,
       schemaStatus: item.schemaStatus,
       isActive: item.isActive,
       lastDiscoveredAt: item.lastDiscoveredAt,

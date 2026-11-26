@@ -31,21 +31,31 @@ export class ArticlesManagerService {
     const contentType = await this.contentTypeService.findByWebsiteAndSlug(websiteId, dto.contentTypeSlug);
     const website = await this.websitesService.findById(websiteId);
 
-    // Extract available taxonomies and ACF fields from the scanned ContentType
+    // Extract available taxonomies (real terms when discovered) and ACF fields from ContentType
     const availableCategories: Array<{ name: string; slug: string }> = [];
     const availableTags: Array<{ name: string; slug: string }> = [];
 
     if (Array.isArray(contentType.taxonomies)) {
       for (const tax of contentType.taxonomies as any[]) {
-        if (tax.slug === 'category') {
-          availableCategories.push({ name: tax.name, slug: tax.slug });
-        } else if (tax.slug === 'post_tag') {
-          availableTags.push({ name: tax.name, slug: tax.slug });
+        const terms = Array.isArray(tax.terms) ? tax.terms : [];
+        if (tax.slug === 'post_tag' || (!tax.hierarchical && tax.slug !== 'category')) {
+          if (terms.length > 0) {
+            availableTags.push(...terms.map((t: any) => ({ name: t.name, slug: t.slug })));
+          } else {
+            availableTags.push({ name: tax.name, slug: tax.slug });
+          }
+        } else {
+          if (terms.length > 0) {
+            availableCategories.push(...terms.map((t: any) => ({ name: t.name, slug: t.slug })));
+          } else {
+            availableCategories.push({ name: tax.name, slug: tax.slug });
+          }
         }
       }
     }
 
     const acfFields = (contentType.schema as any)?.properties?.acf?.fields || [];
+    const layoutBlueprint = (contentType.schema as any)?._layoutBlueprint || null;
     const supportedFeatures = Object.keys(contentType.supports || {});
 
     // Step 1: Structured Mode (skip backend AI) vs Raw Document Mode (use backend AI)
@@ -110,6 +120,7 @@ export class ArticlesManagerService {
           availableTags,
           supportedFeatures,
           acfFields,
+          layoutBlueprint,
         },
         dto.preferredAiProvider,
       );
