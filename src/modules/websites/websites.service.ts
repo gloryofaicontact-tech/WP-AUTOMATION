@@ -28,15 +28,22 @@ export class WebsitesService {
     const normalizedUrl = this.wpClient.normalizeUrl(dto.url);
     const restApiUrl = this.wpClient.getRestApiBase(normalizedUrl);
 
-    // Test connection upfront
+    // Test connection upfront — reject invalid/non-WordPress sites before saving
     const testResult = await this.wpClient.testConnection({
       url: normalizedUrl,
       username: dto.username,
       applicationPassword: dto.applicationPassword,
     });
 
-    const status = testResult.success ? WebsiteStatus.CONNECTED : WebsiteStatus.ERROR;
-    const lastError = testResult.success ? null : (testResult.error || 'Connection failed');
+    if (!testResult.success) {
+      throw new BadRequestException(
+        testResult.error ||
+          'Could not connect to WordPress site. Please verify the URL, username, and Application Password.',
+      );
+    }
+
+    const status = WebsiteStatus.CONNECTED;
+    const lastError = null;
     const encryptedPassword = encryptText(dto.applicationPassword);
 
     const website = await this.prisma.website.create({

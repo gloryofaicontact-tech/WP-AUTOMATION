@@ -62,29 +62,50 @@ export class WordPressClientService {
     const authHeader = this.getAuthHeader(params.username, params.applicationPassword);
 
     try {
-      // Step 1: Probe /wp-json for site details and check if REST API is reachable
+      // Step 1: Probe /wp-json to verify this is a real WordPress site with REST API enabled
       let siteName = '';
       let siteDescription = '';
       let siteUrl = normalizedUrl;
 
-      try {
-        const rootResponse = await fetch(`${normalizedUrl}/wp-json`, {
-          method: 'GET',
-          headers: {
-            Accept: 'application/json',
-          },
-          signal: AbortSignal.timeout(10000),
-        });
+      const rootResponse = await fetch(`${normalizedUrl}/wp-json`, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+        },
+        signal: AbortSignal.timeout(10000),
+      });
 
-        if (rootResponse.ok) {
-          const rootData = await rootResponse.json();
-          siteName = rootData.name || '';
-          siteDescription = rootData.description || '';
-          siteUrl = rootData.url || normalizedUrl;
-        }
-      } catch (rootErr: any) {
-        this.logger.debug(`Could not fetch root /wp-json info: ${rootErr?.message}`);
+      if (!rootResponse.ok) {
+        return {
+          success: false,
+          restApiUrl,
+          error: `Could not reach WordPress REST API at ${normalizedUrl}/wp-json (HTTP ${rootResponse.status}). Please enter a valid WordPress site URL.`,
+        };
       }
+
+      let rootData: any;
+      try {
+        rootData = await rootResponse.json();
+      } catch {
+        return {
+          success: false,
+          restApiUrl,
+          error: `The URL "${normalizedUrl}" is not a valid WordPress site (/wp-json did not return JSON).`,
+        };
+      }
+
+      const namespaces: string[] = Array.isArray(rootData?.namespaces) ? rootData.namespaces : [];
+      if (!namespaces.includes('wp/v2') && !rootData?.routes?.['/wp/v2']) {
+        return {
+          success: false,
+          restApiUrl,
+          error: `The URL "${normalizedUrl}" does not expose the WordPress wp/v2 REST API.`,
+        };
+      }
+
+      siteName = rootData.name || '';
+      siteDescription = rootData.description || '';
+      siteUrl = rootData.url || normalizedUrl;
 
       // Step 2: Validate Application Password credentials via /wp-json/wp/v2/users/me?context=edit
       const userMeUrl = `${restApiUrl}/users/me?context=edit`;
@@ -126,7 +147,32 @@ export class WordPressClientService {
         };
       }
 
-      const userData = await response.json();
+      let userData: any;
+      try {
+        userData = await response.json();
+      } catch {
+        return {
+          success: false,
+          restApiUrl,
+          error: `Unexpected non-JSON response from ${userMeUrl}. Please verify this is a valid WordPress site.`,
+        };
+      }
+
+      if (!userData || typeof userData.id !== 'number') {
+        return {
+          success: false,
+          restApiUrl,
+          error: `Invalid WordPress user response from ${userMeUrl}.`,
+        };
+      }
+
+      if (userData.capabilities && userData.capabilities.edit_posts === false) {
+        return {
+          success: false,
+          restApiUrl,
+          error: `WordPress user "${userData.name || params.username}" does not have permission to create or edit posts.`,
+        };
+      }
 
       return {
         success: true,
