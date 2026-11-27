@@ -239,7 +239,9 @@ export class ContentTypeService {
     const fallbackBlueprint = {
       hasSamplePost: false,
       hasFeaturedImage: supportsThumbnail,
+      featuredImageRenderedInTemplate: supportsThumbnail,
       inlineImageCount: 0,
+      acfImageFields: [] as string[],
       sampleHeadings: [] as string[],
       sampleHtmlSnippet: '',
       sampleAcfExample: null as Record<string, any> | null,
@@ -247,14 +249,14 @@ export class ContentTypeService {
     };
 
     try {
-      const url = `${siteUrl}/wp-json/${restNamespace}/${restBase}?per_page=3&status=publish`;
+      const url = `${siteUrl}/wp-json/${restNamespace}/${restBase}?per_page=3&status=publish&_embed=true`;
       const res = await fetch(url, {
         method: 'GET',
         headers: {
           Authorization: authHeader,
           Accept: 'application/json',
         },
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(10000),
       });
 
       if (!res.ok) {
@@ -294,6 +296,49 @@ export class ContentTypeService {
           ? sample.acf
           : null;
 
+      // Detect ACF image/gallery fields from sample values or field naming
+      const acfImageFields: string[] = [];
+      if (sampleAcfExample) {
+        for (const [key, val] of Object.entries(sampleAcfExample)) {
+          const isImageObj =
+            val && typeof val === 'object' && !Array.isArray(val) && ('url' in val || 'ID' in val || 'sizes' in val);
+          const isImageArr =
+            Array.isArray(val) &&
+            val.some((v) => v && typeof v === 'object' && ('url' in v || 'ID' in v));
+          const looksLikeImageName = /(image|photo|gallery|banner|cover|thumb)/i.test(key);
+          if (isImageObj || isImageArr || (looksLikeImageName && (typeof val === 'number' || typeof val === 'string' || val === false))) {
+            acfImageFields.push(key);
+          }
+        }
+      }
+
+      // Check whether the live rendered webpage actually displays the featured image visually
+      let featuredImageRenderedInTemplate = hasFeaturedImage;
+      const featuredSourceUrl: string | undefined =
+        sample._embedded?.['wp:featuredmedia']?.[0]?.source_url;
+      if (hasFeaturedImage && featuredSourceUrl && sample.link) {
+        try {
+          const livePageRes = await fetch(sample.link, {
+            method: 'GET',
+            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; WP-Automation-Scanner/1.0)' },
+            signal: AbortSignal.timeout(6000),
+          });
+          if (livePageRes.ok) {
+            const liveHtml = await livePageRes.text();
+            const baseFilename = featuredSourceUrl
+              .split('/')
+              .pop()
+              ?.replace(/\.[a-z0-9]+$/i, '')
+              ?.replace(/-\d+x\d+$/, '');
+            if (baseFilename && baseFilename.length >= 3) {
+              featuredImageRenderedInTemplate = liveHtml.includes(baseFilename);
+            }
+          }
+        } catch {
+          // Keep default true if live page probe fails
+        }
+      }
+
       const sampleMetaKeys =
         sample.meta && typeof sample.meta === 'object'
           ? Object.keys(sample.meta).filter((k) => !k.startsWith('_'))
@@ -302,7 +347,9 @@ export class ContentTypeService {
       return {
         hasSamplePost: true,
         hasFeaturedImage,
+        featuredImageRenderedInTemplate,
         inlineImageCount: imgMatches.length,
+        acfImageFields,
         sampleHeadings: headingMatches,
         sampleHtmlSnippet: cleanSkeleton,
         sampleAcfExample,

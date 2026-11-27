@@ -139,6 +139,17 @@ export class ArticlesManagerService {
     const featuredImage = matchedImages.find((img) => img.position === 'featured_hero') || matchedImages[0];
     const featuredMediaUrl = featuredImage?.selectedAsset?.downloadUrl || null;
 
+    // Step 2b: Dynamically inject images into contentHtml based on live layoutBlueprint
+    const includeFeaturedInContent = Boolean(
+      layoutBlueprint?.hasSamplePost && layoutBlueprint.featuredImageRenderedInTemplate === false,
+    );
+    const enrichedContentHtml = this.injectImagesIntoHtml(
+      aiParsed.contentHtml,
+      matchedImages,
+      includeFeaturedInContent,
+    );
+    aiParsed.contentHtml = enrichedContentHtml;
+
     // Step 3: Save structured draft into database
     const snapshot = await this.prisma.contentSnapshot.create({
       data: {
@@ -146,7 +157,7 @@ export class ArticlesManagerService {
         contentTypeId: contentType.id,
         title: aiParsed.title,
         slug: aiParsed.slug,
-        rawContent: aiParsed.contentHtml,
+        rawContent: enrichedContentHtml,
         rawExcerpt: aiParsed.metaDescription,
         rawDocument: dto.rawDocument || dto.contentHtml || '',
         focusKeyword: aiParsed.focusKeyword,
@@ -332,6 +343,86 @@ export class ArticlesManagerService {
   }
 
   /**
+   * Injects <figure class="wp-block-image"> blocks into contentHtml for inline placeholders
+   * (and for the hero image when the live WordPress template does not render featured_media).
+   */
+  private injectImagesIntoHtml(
+    html: string,
+    matchedImages: any[],
+    includeFeaturedInContent: boolean,
+  ): string {
+    let result = html || '';
+    if (!matchedImages || matchedImages.length === 0) {
+      return result;
+    }
+
+    const escapeAttr = (val: string) =>
+      String(val || '')
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+    const buildFigure = (url: string, alt: string) =>
+      `\n<figure class="wp-block-image size-large"><img src="${escapeAttr(url)}" alt="${escapeAttr(alt)}" /></figure>\n`;
+
+    const hasAnyImgAlready = /<img\b/i.test(result);
+
+    for (const img of matchedImages) {
+      const url: string | undefined = img?.selectedAsset?.downloadUrl || img?.selectedAsset?.previewUrl;
+      if (!url || result.includes(url)) continue;
+
+      const pos = img.position || 'featured_hero';
+      const figure = buildFigure(url, img.altText || img.selectedAsset?.title || '');
+
+      if (pos === 'featured_hero') {
+        if (!includeFeaturedInContent || hasAnyImgAlready) continue;
+        const firstH2End = result.indexOf('</h2>');
+        const firstPEnd = result.indexOf('</p>');
+        if (firstPEnd !== -1 && (firstH2End === -1 || firstPEnd < firstH2End + 400)) {
+          result = result.slice(0, firstPEnd + 4) + figure + result.slice(firstPEnd + 4);
+        } else if (firstH2End !== -1) {
+          result = result.slice(0, firstH2End + 5) + figure + result.slice(firstH2End + 5);
+        } else {
+          result = figure + result;
+        }
+        continue;
+      }
+
+      // Inline placeholders: try matching targetHeading first, then nth </h2>
+      let inserted = false;
+      if (img.targetHeading) {
+        const needle = img.targetHeading.trim().toLowerCase();
+        const h2Matches = [...result.matchAll(/<\/h2>/gi)];
+        for (const m of h2Matches) {
+          const idx = m.index ?? -1;
+          const preceding = result.slice(Math.max(0, idx - 180), idx).toLowerCase();
+          if (preceding.includes(needle.slice(0, 20))) {
+            result = result.slice(0, idx + 5) + figure + result.slice(idx + 5);
+            inserted = true;
+            break;
+          }
+        }
+      }
+
+      if (!inserted) {
+        const h2ClosingMatches = [...result.matchAll(/<\/h2>/gi)];
+        const nthMatch = pos === 'after_h2_2' ? 1 : pos === 'after_h2_3' ? 2 : 0;
+        if (pos === 'content_end') {
+          result = result + figure;
+        } else if (h2ClosingMatches.length > nthMatch) {
+          const insertAt = (h2ClosingMatches[nthMatch].index ?? 0) + 5;
+          result = result.slice(0, insertAt) + figure + result.slice(insertAt);
+        } else {
+          result = result + figure;
+        }
+      }
+    }
+
+    return result;
+  }
+
+  /**
    * Builds WordPress Basic Auth header and returns site URL + header.
    */
   private async getWpAuth(websiteId: string) {
@@ -491,7 +582,10 @@ export class ArticlesManagerService {
       throw new BadRequestException('Image file is required.');
     }
 
-    const article = await this.prisma.contentSnapshot.findUnique({ where: { id } });
+    const article = await this.prisma.contentSnapshot.findUnique({
+      where: { id },
+      include: { contentType: true },
+    });
     if (!article) {
       throw new NotFoundException(`Article with ID ${id} not found`);
     }
@@ -529,13 +623,45 @@ export class ArticlesManagerService {
     }
 
     const oldUrl = targetPlaceholder?.selectedAsset?.downloadUrl || targetPlaceholder?.selectedAsset?.previewUrl;
-    const { updatedContent, updatedFeatured } = this.replaceImageReferences(
+    let { updatedContent, updatedFeatured } = this.replaceImageReferences(
       article.rawContent,
       article.featuredMediaUrl,
       isFeaturedSlot,
       oldUrl,
       uploaded.sourceUrl,
     );
+
+    const blueprint = (article.contentType?.schema as any)?._layoutBlueprint;
+    const needsInContent =
+      !isFeaturedSlot || Boolean(blueprint?.hasSamplePost && blueprint.featuredImageRenderedInTemplate === false);
+    if (needsInContent && !updatedContent.includes(uploaded.sourceUrl)) {
+      updatedContent = this.injectImagesIntoHtml(
+        updatedContent,
+        [
+          {
+            ...(targetPlaceholder || { placeholderId: 'featured_hero', position: 'featured_hero' }),
+            selectedAsset: { downloadUrl: uploaded.sourceUrl, title: file.originalname || article.title },
+          },
+        ],
+        true,
+      );
+    }
+
+    // Map uploaded WordPress Media ID to ACF image field if the post type uses ACF image fields
+    let updatedCustomFields = (article.customFields as Record<string, any>) || {};
+    const acfImageFields: string[] = Array.isArray(blueprint?.acfImageFields)
+      ? blueprint.acfImageFields
+      : [];
+    if (acfImageFields.length > 0) {
+      const acfFieldIdx = targetIndex >= 0 && targetIndex < acfImageFields.length ? targetIndex : 0;
+      const targetAcfField = acfImageFields[acfFieldIdx];
+      if (targetAcfField) {
+        updatedCustomFields = {
+          ...updatedCustomFields,
+          [targetAcfField]: /gallery/i.test(targetAcfField) ? [uploaded.id] : uploaded.id,
+        };
+      }
+    }
 
     if (targetPlaceholder) {
       matchedImages[targetIndex] = {
@@ -560,6 +686,7 @@ export class ArticlesManagerService {
         rawContent: updatedContent,
         featuredMediaUrl: updatedFeatured,
         featuredMediaId: isFeaturedSlot ? uploaded.id : article.featuredMediaId,
+        customFields: updatedCustomFields,
         originalData: {
           ...originalData,
           matchedImages,
@@ -581,7 +708,10 @@ export class ArticlesManagerService {
    * Swaps the selected image for a placeholder from its returned alternative options.
    */
   async selectArticleMedia(id: string, placeholderId: string, assetId: string) {
-    const article = await this.prisma.contentSnapshot.findUnique({ where: { id } });
+    const article = await this.prisma.contentSnapshot.findUnique({
+      where: { id },
+      include: { contentType: true },
+    });
     if (!article) {
       throw new NotFoundException(`Article with ID ${id} not found`);
     }
@@ -653,7 +783,10 @@ export class ArticlesManagerService {
       throw new BadRequestException('A search query of at least 2 characters is required.');
     }
 
-    const article = await this.prisma.contentSnapshot.findUnique({ where: { id } });
+    const article = await this.prisma.contentSnapshot.findUnique({
+      where: { id },
+      include: { contentType: true },
+    });
     if (!article) {
       throw new NotFoundException(`Article with ID ${id} not found`);
     }

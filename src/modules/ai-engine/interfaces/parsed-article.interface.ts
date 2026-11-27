@@ -16,7 +16,9 @@ export interface ParsedArticleResult {
 export interface ContentTypeLayoutBlueprint {
   hasSamplePost: boolean;
   hasFeaturedImage: boolean;
+  featuredImageRenderedInTemplate?: boolean;
   inlineImageCount: number;
+  acfImageFields?: string[];
   sampleHeadings?: string[];
   sampleHtmlSnippet?: string;
   sampleAcfExample?: Record<string, any> | null;

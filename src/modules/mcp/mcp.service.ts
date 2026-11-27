@@ -105,7 +105,8 @@ export class McpService {
           if (bp) {
             out += `\n### Detected Layout Blueprint\n`;
             out += `- **Sample Found:** ${bp.hasSamplePost ? 'Yes' : 'No'}\n`;
-            out += `- **Featured Cover Image:** ${bp.hasFeaturedImage ? 'Yes' : 'No'} | **Inline Images:** ${bp.inlineImageCount ?? 0}\n`;
+            out += `- **Featured Cover Image:** ${bp.hasFeaturedImage ? 'Yes' : 'No'} (Rendered in Live Template: ${bp.featuredImageRenderedInTemplate !== false ? 'Yes' : 'No — place image inside contentHtml too'}) | **Inline Images:** ${bp.inlineImageCount ?? 0}\n`;
+            if (bp.acfImageFields?.length) out += `- **ACF Image Fields:** ${bp.acfImageFields.join(', ')}\n`;
             if (bp.sampleHeadings?.length) out += `- **Typical Headings:** ${bp.sampleHeadings.join(' | ')}\n`;
             if (bp.sampleMetaKeys?.length) out += `- **Meta Keys:** ${bp.sampleMetaKeys.join(', ')}\n`;
             if (bp.sampleAcfExample) {

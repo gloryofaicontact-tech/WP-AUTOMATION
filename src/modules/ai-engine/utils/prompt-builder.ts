@@ -12,14 +12,21 @@ export class PromptBuilder {
     if (blueprint?.hasSamplePost) {
       const parts: string[] = [];
       if (blueprint.hasFeaturedImage) {
-        parts.push('1 featured cover image (`position: "featured_hero"`)');
+        parts.push(
+          blueprint.featuredImageRenderedInTemplate === false
+            ? '1 featured cover image (`position: "featured_hero"` — NOTE: live template does not display featured_media visually, so the backend will also place it inside contentHtml)'
+            : '1 featured cover image (`position: "featured_hero"`)',
+        );
       }
       if (blueprint.inlineImageCount > 0) {
         parts.push(
           `${blueprint.inlineImageCount} inline image(s) inside content (e.g. "after_h2_1", "after_h2_2", "content_middle")`,
         );
       } else {
-        parts.push('NO inline images inside content (the live layout uses 0 inline <img> tags)');
+        parts.push('NO extra inline images beyond the hero image');
+      }
+      if (blueprint.acfImageFields?.length) {
+        parts.push(`ACF image fields detected: [${blueprint.acfImageFields.join(', ')}]`);
       }
       imageRuleText =
         `   - Match the exact image layout detected on live "${context.contentTypeName}" posts: ${parts.join(' + ')}.`;
