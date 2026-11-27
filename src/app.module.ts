@@ -33,6 +33,7 @@ import { MediaDiscoveryModule } from './modules/media-discovery/media-discovery.
 import { ArticlesManagerModule } from './modules/articles-manager/articles-manager.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { McpModule } from './modules/mcp/mcp.module';
+import { WpConnectorModule } from './modules/wp-connector/wp-connector.module';
 import { CacheModule } from './infrastructure/cache/cache.module';
 import { getThrottlerModuleOptions } from './config/throttle-module.config';
 
@@ -89,6 +90,7 @@ import { getThrottlerModuleOptions } from './config/throttle-module.config';
     ArticlesManagerModule,
     ApiKeysModule,
     McpModule,
+    WpConnectorModule,
   ],
 
   providers: [
